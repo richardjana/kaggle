@@ -1,5 +1,7 @@
-# exclude training data
+# exclude training data, models and plots
 *.csv
+*.keras
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
