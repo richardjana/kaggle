@@ -1,137 +1,179 @@
+import datetime
+import keras
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
 import tensorflow as tf
-print(tf.__version__)
+#print(tf.__version__)
 
 from tensorflow import feature_column
-#from tensorflow.keras import layers
+from tensorflow.keras import layers
+#from sklearn.metrics import root_mean_squared_log_error
 from sklearn.model_selection import train_test_split
 
+stamp = datetime.datetime.timestamp(datetime.datetime.now())
+
 def clean_data(pd_df): # clean dataset
-# replace unknown non-numerical values (or should I remove them?)
+    pd_df.drop('id', axis=1, inplace=True)
+    # replace unknown non-numerical values (or should I remove them?)
     for key in ['Marital Status', 'Occupation', 'Customer Feedback']:
         pd_df[key] = pd_df[key].fillna('UNKNOWN')
 
     # setting numerical column NaNs to median value for the column
-    for key in ['Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration']:
+    # consider dropping some values here
+    for key in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration']:
         pd_df[key] = pd_df[key].fillna(pd_df[key].median())
+
+    # translate 'Policy Start Date' into a numerical value
+    delta = np.empty(len(pd_df['Policy Start Date']))
+    now = datetime.datetime.now()
+    for i,psd in enumerate(pd_df['Policy Start Date']):
+        d = now - datetime.datetime.fromisoformat(psd)
+        delta[i] = d.days
+    pd_df['Time Since Start'] = delta
+    pd_df.drop('Policy Start Date', axis=1, inplace=True)
 
     return pd_df
 
 ##### load data,  split into train / validation / test #####
-dataframe = clean_data(pd.read_csv("train.csv"))
+dataframe = clean_data(pd.read_csv('train.csv'))
+dataframe, rest = train_test_split(dataframe, test_size=0.95) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
-test = clean_data(pd.read_csv("test.csv"))
-
-#print(train.sample(n=5))
-#print(test.sample(n=5))
+test = clean_data(pd.read_csv('test.csv'))
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
-    dataframe = dataframe.copy()
-    if 'Premium Amount' in dataframe.keys():
-        labels = dataframe.pop('Premium Amount')
-        ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+    df = dataframe.copy()
+    if 'Premium Amount' in df.keys():
+        labels = df.pop('Premium Amount')
+        df = {key: value.to_numpy()[:,tf.newaxis] for key, value in df.items()}
+        ds = tf.data.Dataset.from_tensor_slices((dict(df), labels))
     else:
-        ds = tf.data.Dataset.from_tensor_slices(dict(dataframe))
-    if shuffle:
-        ds = ds.shuffle(buffer_size=len(dataframe))
+        ds = tf.data.Dataset.from_tensor_slices(dict(df))
     ds = ds.batch(batch_size)
+    if shuffle:
+        ds = ds.shuffle(buffer_size=10 * batch_size)
+    ds = ds.prefetch(batch_size)
     return ds
 
-batch_size = 64
+batch_size = 32
 train_ds = df_to_dataset(train, batch_size=batch_size)
 val_ds = df_to_dataset(val, shuffle=False, batch_size=batch_size)
 test_ds = df_to_dataset(test, shuffle=False, batch_size=batch_size)
+#rest_ds = df_to_dataset(rest, shuffle=False, batch_size=batch_size)
 
+def get_normalization_layer(name, dataset):
+    normalizer = layers.Normalization(axis=None) # Create a Normalization layer for the feature.
+    feature_ds = dataset.map(lambda x, y: x[name]) # Prepare a Dataset that only yields the feature.
+    normalizer.adapt(feature_ds) # Learn the statistics of the data.
+    return normalizer
 
-# In TensorFlow 1, you usually perform feature preprocessing with the tf.feature_column API. In TensorFlow 2, you can do this directly with Keras preprocessing layers.
-# https://www.tensorflow.org/guide/migrate/migrating_feature_columns
-feature_columns = []
+def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
+    if dtype == 'string': # Create a layer that turns strings into integer indices.
+        index = layers.StringLookup(max_tokens=max_tokens)
+    else: # Otherwise, create a layer that turns integer values into integer indices.
+        index = layers.IntegerLookup(max_tokens=max_tokens)
 
-# numeric cols
-for col_name in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration']:
-    feature_columns.append(feature_column.numeric_column(col_name))
+    # Prepare a `tf.data.Dataset` that only yields the feature.
+    feature_ds = dataset.map(lambda x, y: x[name])
 
-# b) integer / ordinal encoding -> education level, customer feedback, exercise frequency
+    # Learn the set of possible values and assign them a fixed integer index.
+    index.adapt(feature_ds)
 
-# embedding columns
-for col_name in ['Gender', 'Marital Status', 'Education Level', 'Occupation', 'Location', 'Policy Type', 'Policy Start Date', 'Customer Feedback', 'Smoking Status', 'Exercise Frequency', 'Property Type']:
-    column = feature_column.categorical_column_with_vocabulary_list(col_name, dataframe[col_name].unique())
-    embedded = feature_column.embedding_column(column, dimension=8)
-    feature_columns.append(embedded)
+    # Encode the integer indices.
+    encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size())
 
+    # Apply multi-hot encoding to the indices. The lambda function captures the
+    # layer, so you can use them, or include them in the Keras Functional model later.
+    return lambda feature: encoder(index(feature))
 
+all_inputs = {}
+encoded_features = []
 
-feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+# Numerical features.
+for col_name in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration', 'Time Since Start']:
+    numeric_col = tf.keras.Input(shape=(1,), name=col_name)
+    normalization_layer = get_normalization_layer(col_name, train_ds)
+    encoded_numeric_col = normalization_layer(numeric_col)
+    all_inputs[col_name] = numeric_col
+    encoded_features.append(encoded_numeric_col)
 
-model = tf.keras.Sequential([
-  feature_layer,
-  tf.keras.layers.Dense(128, activation='relu'),
-  tf.keras.layers.Dense(128, activation='relu'),
-  tf.keras.layers.Dropout(.1),
-  tf.keras.layers.Dense(1)
-])
+### convert policy start date to some meaningful numerical value (days elapsed / ...)
+for col_name in ['Gender', 'Marital Status', 'Education Level', 'Occupation', 'Location', 'Policy Type', 'Customer Feedback', 'Smoking Status', 'Exercise Frequency', 'Property Type']:
+    categorical_col = tf.keras.Input(shape=(1,), name=col_name, dtype='string')
+    encoding_layer = get_category_encoding_layer(name=col_name, dataset=train_ds, dtype='string', max_tokens=10)
+    encoded_categorical_col = encoding_layer(categorical_col)
+    all_inputs[col_name] = categorical_col
+    encoded_features.append(encoded_categorical_col)
 
-model.compile(optimizer='adam',
-              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+all_features = tf.keras.layers.concatenate(encoded_features)
+x = tf.keras.layers.Dense(128, activation='relu')(all_features) # MORE LAYERS ?!
+x = tf.keras.layers.Dense(128, activation='relu')(x)
+x = tf.keras.layers.Dense(128, activation='relu')(x)
+x = tf.keras.layers.Dropout(0.10)(x)
+output = tf.keras.layers.Dense(1)(x)
 
-model.fit(train_ds,
+model = tf.keras.Model(all_inputs, output)
+
+model.compile(optimizer=keras.optimizers.Adam(), # learning_rate=1e-3
+              loss=tf.keras.losses.MeanSquaredError(),
+              metrics=['root_mean_squared_error']) # root_mean_squared_log_error
+
+history = model.fit(train_ds,
           validation_data=val_ds,
-          epochs=10)
+          epochs=100,
+          callbacks=[tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-3 * 10 ** (epoch / 30))])
 
-loss, accuracy = model.evaluate(test_ds)
-print("Accuracy", accuracy)
-
-
-
-
-exit()
-
-# make prediction
-predictions = model(x_train[:1]).numpy()
-print('predictions untrained', predictions)
-
-# The tf.nn.softmax function converts these logits to probabilities for each class
-print('logits', tf.nn.softmax(predictions).numpy())
-
-# Define a loss function for training using losses.SparseCategoricalCrossentropy
-loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-
-# This untrained model gives probabilities close to random (1/10 for each class), so the initial loss should be close to -tf.math.log(1/10) ~= 2.3
-print('loss untrained', loss_fn(y_train[:1], predictions).numpy())
-
-# Before you start training, configure and compile the model
-model.compile(optimizer='adam',
-              loss=loss_fn,
-              metrics=['accuracy'])
-
-# Train and evaluate your model
-history = model.fit(x_train, y_train, epochs=5, validation_data=(x_val, y_val))
-# or
-# history = model.fit(x_train, y_train, epochs=5, validation_split=0.2)
-
-# The Model.evaluate method checks the model's performance, usually on a validation set or test set.
-model.evaluate(x_test,  y_test, verbose=2)
-
-# If you want your model to return a probability, you can wrap the trained model, and attach the softmax to it
-probability_model = tf.keras.Sequential([
-  model,
-  tf.keras.layers.Softmax()
-])
-
-print('model', model(x_test[:1]), np.sum(model(x_test[:1]).numpy()))
-print('probability_model', probability_model(x_test[:1]), np.sum(probability_model(x_test[:1]).numpy()))
-
-# The returned history object holds a record of the loss values and metric values during training
-print('history', history.history)
-
-
-#model.save("path_to_my_model.keras")
-#del model
+model.save(f"insurance_{stamp}.keras")
 # Recreate the exact same model purely from the file:
 #model = keras.models.load_model("path_to_my_model.keras")
+
+##### estimate optimal learning rate for optimizer #####
+# (run small dataset for many epochs with LR scheduler, make plot loss vs. LR)
+def plot_LR(history):
+    fig, ax = plt.subplots(2, 1, figsize=(10, 5), tight_layout=True)
+
+    ax[0].plot(np.arange(len(history['root_mean_squared_error']))+1, history['root_mean_squared_error'], c='tab:blue', label='RMSE')
+    ax[0].set_ylabel('RMSE', color='tab:blue')
+    ax[0].tick_params(axis='y', labelcolor='tab:blue')
+    twin = ax[0].twinx()
+    twin.plot(np.arange(len(history['root_mean_squared_error']))+1, history['learning_rate'], '--k', label='Learning rate')
+    twin.set_ylabel('Learning rate', color='k')
+    ax[0].set_xlabel('Epoch')
+
+    ax[1].plot(history['learning_rate'], history['loss'], 'k')
+    m = np.argmin(history['loss'])
+    ax[1].plot(history['learning_rate'][m], history['loss'][m], 'or')
+    ax[1].text(history['learning_rate'][m], history['loss'][m], f"{history['learning_rate'][m]}", ha='center', va='top')
+    ax[1].set_xlabel('Learning rate')
+    ax[1].set_ylabel('Loss')
+    ax[1].set_xscale('log')
+
+    plt.savefig(f"LR_test_{stamp}.png", bbox_inches='tight')
+    plt.close()
+
+plot_LR(history.history)
+
+##### save training history to logfile (final epoch) #####
+with open('log.txt', 'a') as LOG:
+    LOG.write(f"{stamp}: {history.history['root_mean_squared_error'][-1]}, {history.history['val_root_mean_squared_error'][-1]}\n")
+
+##### plot training history #####
+def make_training_plot(history):
+    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    ax.plot(np.arange(len(history['root_mean_squared_error']))+1, history['root_mean_squared_error'], 'r', label='training RMSE')
+    ax.plot(np.arange(len(history['val_root_mean_squared_error']))+1, history['val_root_mean_squared_error'], 'g', label='validation RMSE')
+    ax.set_xlabel('epoch')
+    ax.set_ylabel('Root Mean Squared Error (€)')
+    ax.set_title(f"{stamp}")
+    plt.legend(loc='best')
+    plt.savefig(f"training_{stamp}.png", bbox_inches='tight')
+    plt.close()
+
+make_training_plot(history.history)
+
+##### make predictions on the test set #####
+predictions = model.predict(test_ds)
+np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount')
