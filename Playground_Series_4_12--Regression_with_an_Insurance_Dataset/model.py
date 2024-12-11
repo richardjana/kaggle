@@ -179,3 +179,4 @@ make_training_plot(history.history)
 ##### make predictions on the test set #####
 predictions = model.predict(test_ds)
 np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount')
+np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount', comments='')
