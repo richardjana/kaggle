@@ -180,3 +180,30 @@ make_training_plot(history.history)
 predictions = model.predict(test_ds)
 np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount')
 np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount', comments='')
+
+##### make diagonal error plot #####
+def RMSE(arr_1, arr_2):
+    return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
+
+def make_diagonal_plot(training_value, training_prediction, validation_value, validation_prediction):
+    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+
+    ax.scatter(training_value, training_prediction, alpha=0.5, label=f"training ({RMSE(training_value, training_prediction):.2f})")
+    ax.scatter(validation_value, validation_prediction, alpha=0.5, label=f"validation ({RMSE(validation_value, validation_prediction):.2f})")
+
+    min_val = min(ax.get_xlim()[0], ax.get_ylim()[0])
+    max_val = max(ax.get_xlim()[1], ax.get_ylim()[1])
+    ax.plot([min_val, max_val], [min_val, max_val], linewidth=1, color='k')
+    ax.set_xlim([min_val, max_val])
+    ax.set_ylim([min_val, max_val])
+
+    ax.set_aspect('equal')
+    ax.legend(loc='best', title='dataset (RMSE):')
+    ax.set_xlabel('actual')
+    ax.set_ylabel('predicted')
+    fig.savefig(f"error_{stamp}.png")
+
+make_diagonal_plot(train['Premium Amount'].to_numpy().reshape(-1, 1),
+                   model.predict(train_ds),
+                   val['Premium Amount'].to_numpy().reshape(-1, 1),
+                   model.predict(val_ds))
