@@ -62,7 +62,7 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 
 batch_size = 32
 train_ds = df_to_dataset(train, batch_size=batch_size)
-val_ds = df_to_dataset(val, shuffle=False, batch_size=batch_size)
+val_ds = df_to_dataset(val, batch_size=batch_size)
 test_ds = df_to_dataset(test, shuffle=False, batch_size=batch_size)
 #rest_ds = df_to_dataset(rest, shuffle=False, batch_size=batch_size)
 
@@ -203,6 +203,8 @@ def make_diagonal_plot(training_value, training_prediction, validation_value, va
     ax.set_ylabel('predicted')
     fig.savefig(f"error_{stamp}.png")
 
+train_ds = df_to_dataset(train, shuffle=False, batch_size=batch_size)
+val_ds = df_to_dataset(val, shuffle=False, batch_size=batch_size)
 make_diagonal_plot(train['Premium Amount'].to_numpy().reshape(-1, 1),
                    model.predict(train_ds),
                    val['Premium Amount'].to_numpy().reshape(-1, 1),
