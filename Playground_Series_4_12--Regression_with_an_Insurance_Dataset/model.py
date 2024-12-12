@@ -87,7 +87,6 @@ def get_normalization_layer(name, dataset):
     normalizer.adapt(feature_ds) # Learn the statistics of the data.
     return normalizer
 
-# try different encoding strategies: one-hot for unrelated categories, integer for sorted ones
 def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
     if dtype == 'string': # Create a layer that turns strings into integer indices.
         index = layers.StringLookup(max_tokens=max_tokens)
@@ -101,7 +100,7 @@ def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
     index.adapt(feature_ds)
 
     # Encode the integer indices.
-    encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size())
+    encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size(), output_mode="one_hot")
 
     # Apply multi-hot encoding to the indices. The lambda function captures the
     # layer, so you can use them, or include them in the Keras Functional model later.
