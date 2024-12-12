@@ -19,11 +19,12 @@ stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
 def clean_data(pd_df): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
-    # replace unknown non-numerical values (or should I remove them?)
+    # drop those lines
+    pd_df.dropna(axis=0, how='any', inplace=True)
+    # OR replace unknown non-numerical values (or should I remove them?)
     for key in ['Marital Status', 'Occupation', 'Customer Feedback']:
         pd_df[key] = pd_df[key].fillna('UNKNOWN')
-    # OR drop those lines
-    #pd_df.dropna(axis=0, how='any', inplace=True)
+
 
     # setting numerical column NaNs to median value for the column
     # consider dropping some values here
