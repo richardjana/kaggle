@@ -18,13 +18,14 @@ from sklearn.model_selection import train_test_split
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
 def clean_data(pd_df): # clean dataset
+def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
     # drop those lines
-    pd_df.dropna(axis=0, how='any', inplace=True)
+    if drop:
+        pd_df.dropna(axis=0, how='any', inplace=True)
     # OR replace unknown non-numerical values (or should I remove them?)
     for key in ['Marital Status', 'Occupation', 'Customer Feedback']:
         pd_df[key] = pd_df[key].fillna('UNKNOWN')
-
 
     # setting numerical column NaNs to median value for the column
     # consider dropping some values here
@@ -40,6 +41,19 @@ def clean_data(pd_df): # clean dataset
     pd_df['Time Since Start'] = delta
     pd_df.drop('Policy Start Date', axis=1, inplace=True)
 
+    # turn ordered categorical columns into numerical ones
+    pd_df.dropna(axis=0, how='any', inplace=True)
+    for key, val in {'High School': 12, "Bachelor's": 15, "Master's": 17, 'PhD': 22}.items():
+        pd_df['Education Level'].replace(to_replace=key, value=val, inplace=True)
+    for key, val in {'Daily': 1, 'Weekly': 7, 'Monthly': 30, 'Rarely': 90}.items():
+        pd_df['Exercise Frequency'].replace(to_replace=key, value=val, inplace=True)
+    for key, val in {'Poor': 0, 'Average': 1, 'Good': 2, 'UNKNOWN': 1}.items():
+        pd_df['Customer Feedback'].replace(to_replace=key, value=val, inplace=True)
+    for key, val in {'Rural': 0, 'Suburban': 1, 'Urban': 2}.items():
+        pd_df['Location'].replace(to_replace=key, value=val, inplace=True)
+    for key, val in {'Basic': 0, 'Comprehensive': 1, 'Premium': 2}.items():
+        pd_df['Policy Type'].replace(to_replace=key, value=val, inplace=True)
+
     return pd_df
 
 ##### load data,  split into train / validation / test #####
@@ -47,6 +61,7 @@ dataframe = clean_data(pd.read_csv('train.csv'))
 dataframe, rest = train_test_split(dataframe, test_size=0.95) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'))
+test = clean_data(pd.read_csv('test.csv'), drop=False)
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
@@ -74,6 +89,7 @@ def get_normalization_layer(name, dataset):
     normalizer.adapt(feature_ds) # Learn the statistics of the data.
     return normalizer
 
+# try different encoding strategies: one-hot for unrelated categories, integer for sorted ones
 def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
     if dtype == 'string': # Create a layer that turns strings into integer indices.
         index = layers.StringLookup(max_tokens=max_tokens)
@@ -97,15 +113,14 @@ all_inputs = {}
 encoded_features = []
 
 # Numerical features.
-for col_name in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration', 'Time Since Start']:
+for col_name in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score', 'Previous Claims', 'Vehicle Age', 'Credit Score', 'Insurance Duration', 'Time Since Start', 'Education Level', 'Location', 'Customer Feedback', 'Policy Type', 'Exercise Frequency']:
     numeric_col = tf.keras.Input(shape=(1,), name=col_name)
     normalization_layer = get_normalization_layer(col_name, train_ds)
     encoded_numeric_col = normalization_layer(numeric_col)
     all_inputs[col_name] = numeric_col
     encoded_features.append(encoded_numeric_col)
 
-### convert policy start date to some meaningful numerical value (days elapsed / ...)
-for col_name in ['Gender', 'Marital Status', 'Education Level', 'Occupation', 'Location', 'Policy Type', 'Customer Feedback', 'Smoking Status', 'Exercise Frequency', 'Property Type']:
+for col_name in ['Gender', 'Marital Status', 'Occupation', 'Smoking Status', 'Property Type']:
     categorical_col = tf.keras.Input(shape=(1,), name=col_name, dtype='string')
     encoding_layer = get_category_encoding_layer(name=col_name, dataset=train_ds, dtype='string', max_tokens=10)
     encoded_categorical_col = encoding_layer(categorical_col)
