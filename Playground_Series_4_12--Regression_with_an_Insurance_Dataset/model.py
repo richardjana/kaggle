@@ -17,7 +17,6 @@ from sklearn.model_selection import train_test_split
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
-def clean_data(pd_df): # clean dataset
 def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
     # drop those lines
@@ -60,7 +59,6 @@ def clean_data(pd_df, drop=True): # clean dataset
 dataframe = clean_data(pd.read_csv('train.csv'))
 dataframe, rest = train_test_split(dataframe, test_size=0.95) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
-test = clean_data(pd.read_csv('test.csv'))
 test = clean_data(pd.read_csv('test.csv'), drop=False)
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe
