@@ -66,7 +66,6 @@ batch_size = 32
 train_ds = df_to_dataset(train, batch_size=batch_size)
 val_ds = df_to_dataset(val, batch_size=batch_size)
 test_ds = df_to_dataset(test, shuffle=False, batch_size=batch_size)
-#rest_ds = df_to_dataset(rest, shuffle=False, batch_size=batch_size)
 
 def get_normalization_layer(name, dataset):
     normalizer = layers.Normalization(axis=None) # Create a Normalization layer for the feature.
@@ -113,7 +112,9 @@ for col_name in ['Gender', 'Marital Status', 'Education Level', 'Occupation', 'L
     encoded_features.append(encoded_categorical_col)
 
 all_features = tf.keras.layers.concatenate(encoded_features)
-x = tf.keras.layers.Dense(128, activation='relu')(all_features) # MORE LAYERS ?!
+
+
+x = tf.keras.layers.Dense(128, activation='relu')(all_features)
 x = tf.keras.layers.Dense(128, activation='relu')(x)
 x = tf.keras.layers.Dense(128, activation='relu')(x)
 x = tf.keras.layers.Dropout(0.10)(x)
