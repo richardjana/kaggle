@@ -22,6 +22,8 @@ def clean_data(pd_df): # clean dataset
     # replace unknown non-numerical values (or should I remove them?)
     for key in ['Marital Status', 'Occupation', 'Customer Feedback']:
         pd_df[key] = pd_df[key].fillna('UNKNOWN')
+    # OR drop those lines
+    #pd_df.dropna(axis=0, how='any', inplace=True)
 
     # setting numerical column NaNs to median value for the column
     # consider dropping some values here
