@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
+use_GDP = True
+
 def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
 
@@ -29,6 +31,13 @@ def clean_data(pd_df, drop=True): # clean dataset
         time[i] = (datetime.datetime.fromisoformat(d) - start).days
     pd_df['days'] = time
     pd_df.drop('date', axis=1, inplace=True)
+
+    # replace countries with GDP values
+    if use_GDP == True:
+        GDP = {'Norway': 95006.33, 'Finland': 53172.67, 'Canada': 54267.67,
+               'Italy': 37777.33, 'Kenya': 2089, 'Singapore': 84073}
+        for key, val in GDP.items():
+            pd_df['country'].replace(to_replace=key, value=val, inplace=True)
 
     return pd_df
 
@@ -77,14 +86,21 @@ def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
 all_inputs = {}
 encoded_features = []
 
-for col_name in ['days']:
+numerical_columns = ['days']
+categorical_columns = ['country', 'store', 'product']
+if use_GDP == True:
+    numerical_columns += ['country']
+else:
+    categorical_columns += ['country']
+
+for col_name in numerical_columns:
     numeric_col = tf.keras.Input(shape=(1,), name=col_name)
     normalization_layer = get_normalization_layer(col_name, train_ds)
     encoded_numeric_col = normalization_layer(numeric_col)
     all_inputs[col_name] = numeric_col
     encoded_features.append(encoded_numeric_col)
 
-for col_name in ['country', 'store', 'product']:
+for col_name in categorical_columns:
     categorical_col = tf.keras.Input(shape=(1,), name=col_name, dtype='string')
     encoding_layer = get_category_encoding_layer(name=col_name, dataset=train_ds, dtype='string')
     encoded_categorical_col = encoding_layer(categorical_col)
