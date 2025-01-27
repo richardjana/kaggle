@@ -17,6 +17,11 @@ from sklearn.model_selection import train_test_split
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
+##### hyper params #####
+drop_rate = 0.1
+layer_sizes = [128, 128, 128]
+tag = f""
+
 def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
     # drop those lines
@@ -57,7 +62,7 @@ def clean_data(pd_df, drop=True): # clean dataset
 
 ##### load data,  split into train / validation / test #####
 dataframe = clean_data(pd.read_csv('train.csv'))
-dataframe, rest = train_test_split(dataframe, test_size=0.95) # reduce dataset size for testing
+dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'), drop=False)
 
@@ -89,9 +94,9 @@ def get_normalization_layer(name, dataset):
 
 def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
     if dtype == 'string': # Create a layer that turns strings into integer indices.
-        index = layers.StringLookup(max_tokens=max_tokens)
+        index = layers.StringLookup(output_mode='one_hot')
     else: # Otherwise, create a layer that turns integer values into integer indices.
-        index = layers.IntegerLookup(max_tokens=max_tokens)
+        index = layers.IntegerLookup(output_mode='one_hot')
 
     # Prepare a `tf.data.Dataset` that only yields the feature.
     feature_ds = dataset.map(lambda x, y: x[name])
@@ -100,11 +105,12 @@ def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
     index.adapt(feature_ds)
 
     # Encode the integer indices.
-    encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size(), output_mode="one_hot")
+    #encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size(), output_mode="one_hot")
 
     # Apply multi-hot encoding to the indices. The lambda function captures the
     # layer, so you can use them, or include them in the Keras Functional model later.
-    return lambda feature: encoder(index(feature))
+    #return lambda feature: encoder(index(feature))
+    return index
 
 all_inputs = {}
 encoded_features = []
@@ -119,34 +125,77 @@ for col_name in ['Age', 'Annual Income', 'Number of Dependents', 'Health Score',
 
 for col_name in ['Gender', 'Marital Status', 'Occupation', 'Smoking Status', 'Property Type']:
     categorical_col = tf.keras.Input(shape=(1,), name=col_name, dtype='string')
-    encoding_layer = get_category_encoding_layer(name=col_name, dataset=train_ds, dtype='string', max_tokens=10)
+    encoding_layer = get_category_encoding_layer(name=col_name, dataset=train_ds, dtype='string')
     encoded_categorical_col = encoding_layer(categorical_col)
     all_inputs[col_name] = categorical_col
     encoded_features.append(encoded_categorical_col)
 
 all_features = tf.keras.layers.concatenate(encoded_features)
 
-
-x = tf.keras.layers.Dense(128, activation='relu')(all_features)
-x = tf.keras.layers.Dense(128, activation='relu')(x)
-x = tf.keras.layers.Dense(128, activation='relu')(x)
-x = tf.keras.layers.Dropout(0.10)(x)
+from tensorflow.keras import regularizers
+x = tf.keras.layers.Dense(512, activation='relu', kernel_regularizer=regularizers.l2(0.01))(all_features)
+x = tf.keras.layers.Dense(512, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(512, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(512, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dropout(0.25)(x)
 output = tf.keras.layers.Dense(1)(x)
 
 model = tf.keras.Model(all_inputs, output)
 
-model.compile(optimizer=keras.optimizers.Adam(), # learning_rate=1e-3
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.006), # 0.003
               loss=tf.keras.losses.MeanSquaredError(),
               metrics=['root_mean_squared_error']) # root_mean_squared_log_error
 
 history = model.fit(train_ds,
           validation_data=val_ds,
-          epochs=100,
-          callbacks=[tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-3 * 10 ** (epoch / 30))])
+          epochs=50)#,
+          #callbacks=[tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-3 * 10 ** (epoch / 30))])
 
 model.save(f"insurance_{stamp}.keras")
 # Recreate the exact same model purely from the file:
 #model = keras.models.load_model("path_to_my_model.keras")
+'''
+
+##### test number and size of layers #####
+from scikeras.wrappers import KerasClassifier
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+def createmodel(n_layers, layer_size, drop_rate):
+    for i in range(n_layers):
+        if i==0:
+            x = tf.keras.layers.Dense(layer_size, activation='relu')(all_features)
+        else:
+            x = tf.keras.layers.Dense(layer_size, activation='relu')(x)
+
+    x = tf.keras.layers.Dropout(drop_rate)(x)
+    output = tf.keras.layers.Dense(1)(x)
+
+    model = tf.keras.Model(all_inputs, output)
+    model.compile(optimizer=keras.optimizers.Adam(),
+                  loss=tf.keras.losses.MeanSquaredError(),
+                  metrics=['root_mean_squared_error'])
+
+    return model
+
+model = KerasClassifier(build_fn=createmodel, verbose=False) # Wrap model into scikit-learn
+param_grid = dict(n_layers=[1, 2, 3, 4, 5],
+                  layer_size=[32, 64, 128, 256, 512, 1024],
+                  drop_rate=[0.05, 0.1, 0.15, 0.2],
+                  batch_size=[100],
+                  epochs=[100])
+grid = GridSearchCV(estimator=model, param_grid=param_grid)
+
+# Note that since we are using GridSearchCV, which performs cross-validation while tuning model performance we should use the entire dataset for cross-validation
+y = dataframe['Premium Amount']
+print(y)
+X = dataframe.drop('Premium Amount', axis=1)
+print(X)
+print(X.value_counts)
+print(y.value_counts)
+grid.fit(X.to_numpy(), y.to_numpy().reshape(-1, 1))
+print(grid.best_score_)
+print(grid.best_params_)
+pd.DataFrame(grid.cv_results_)[['mean_test_score', 'std_test_score', 'params']].to_csv('GridOptimization.csv')
+'''
 
 ##### estimate optimal learning rate for optimizer #####
 # (run small dataset for many epochs with LR scheduler, make plot loss vs. LR)
@@ -172,7 +221,7 @@ def plot_LR(history):
     plt.savefig(f"LR_test_{stamp}.png", bbox_inches='tight')
     plt.close()
 
-plot_LR(history.history)
+#plot_LR(history.history)
 
 ##### save training history to logfile (final epoch) #####
 with open('log.txt', 'a') as LOG:
@@ -193,9 +242,8 @@ def make_training_plot(history):
 make_training_plot(history.history)
 
 ##### make predictions on the test set #####
-predictions = model.predict(test_ds)
-np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount')
-np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount', comments='')
+#predictions = model.predict(test_ds)
+#np.savetxt(f"submit_{stamp}.csv", np.append(pd.read_csv('test.csv').to_numpy()[:, 0].reshape(-1, 1), predictions, axis=1), fmt='%i', delimiter=',', header='id,Premium Amount', comments='')
 
 ##### make diagonal error plot #####
 def RMSE(arr_1, arr_2):
@@ -204,8 +252,8 @@ def RMSE(arr_1, arr_2):
 def make_diagonal_plot(training_value, training_prediction, validation_value, validation_prediction):
     fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
 
-    ax.scatter(training_value, training_prediction, alpha=0.5, label=f"training ({RMSE(training_value, training_prediction):.2f})")
-    ax.scatter(validation_value, validation_prediction, alpha=0.5, label=f"validation ({RMSE(validation_value, validation_prediction):.2f})")
+    ax.scatter(training_value, training_prediction, alpha=0.25, label=f"training ({RMSE(training_value, training_prediction):.2f})")
+    ax.scatter(validation_value, validation_prediction, alpha=0.25, label=f"validation ({RMSE(validation_value, validation_prediction):.2f})")
 
     min_val = min(ax.get_xlim()[0], ax.get_ylim()[0])
     max_val = max(ax.get_xlim()[1], ax.get_ylim()[1])
