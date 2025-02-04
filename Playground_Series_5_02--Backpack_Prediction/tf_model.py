@@ -44,7 +44,7 @@ def clean_data(pd_df, drop=True): # clean dataset
     return pd_df
 
 ##### load data,  split into train / validation / test #####
-dataframe = clean_data(pd.read_csv('train.csv'))
+dataframe = clean_data(pd.concat([pd.read_csv('train.csv'), pd.read_csv('training_extra.csv')], ignore_index=True))
 dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'), drop=False)
