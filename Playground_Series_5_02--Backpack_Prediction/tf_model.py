@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+import sys
 import tensorflow as tf
 
 from tensorflow import feature_column
@@ -14,10 +15,14 @@ from tensorflow.keras import layers
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 
-layer_size = 128
-drop_rate = 0.3
+n_layers = sys.argv[1] # 5
+layer_size = sys.argv[2] # 128
+drop_rate = sys.argv[3] # 0.3
+learn_rate = sys.argv[4] # 0.0001
+epochs = sys.argv[5] # 250
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
+stamp = f"{n_layers}x{layer_size}_{drop_rate}_{learn_rate}_{epochs}"
 
 def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
@@ -107,23 +112,20 @@ all_features = tf.keras.layers.concatenate(encoded_features)
 
 x = tf.keras.layers.Dense(layer_size, activation='relu', kernel_regularizer=regularizers.l2(0.01))(all_features)
 x = tf.keras.layers.Dropout(drop_rate)(x)
-x = tf.keras.layers.Dense(layer_size, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
-x = tf.keras.layers.Dropout(drop_rate)(x)
-x = tf.keras.layers.Dense(layer_size, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
-x = tf.keras.layers.Dropout(drop_rate)(x)
-x = tf.keras.layers.Dense(layer_size, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
-x = tf.keras.layers.Dropout(drop_rate)(x)
+for i in range(n_layers-1):
+    x = tf.keras.layers.Dense(layer_size, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+    x = tf.keras.layers.Dropout(drop_rate)(x)
 output = tf.keras.layers.Dense(1)(x)
 
 model = tf.keras.Model(all_inputs, output)
 
-model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=learn_rate),
               loss=tf.keras.losses.MeanSquaredError(),
               metrics=['root_mean_squared_error'])
 
 history = model.fit(train_ds,
           validation_data=val_ds,
-          epochs=100)
+          epochs=epochs)
 
 model.save(f"backpack_{stamp}.keras")
 
