@@ -15,11 +15,11 @@ from tensorflow.keras import layers
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 
-n_layers = sys.argv[1] # 5
-layer_size = sys.argv[2] # 128
-drop_rate = sys.argv[3] # 0.3
-learn_rate = sys.argv[4] # 0.0001
-epochs = sys.argv[5] # 250
+n_layers = int(sys.argv[1]) # 5
+layer_size = int(sys.argv[2]) # 128
+drop_rate = float(sys.argv[3]) # 0.3
+learn_rate = float(sys.argv[4]) # 0.0001
+epochs = int(sys.argv[5]) # 250
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 stamp = f"{n_layers}x{layer_size}_{drop_rate}_{learn_rate}_{epochs}"
