@@ -51,3 +51,15 @@ def make_diagonal_plot(train, val, target_col, metric, metric_name, fname):
 
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
+
+def make_training_plot(history, fname):
+    metric = list(history.keys())[0]
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    ax.plot(np.arange(len(history[metric]))+1, history[metric], 'r', label=f"training {metric}")
+    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric}"], 'g', label=f"validation {metric}")
+    ax.set_xlabel('epoch')
+    ax.set_ylabel(metric)
+    plt.legend(loc='best')
+    plt.savefig(fname, bbox_inches='tight')
+    plt.close()

@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import make_category_error_plot
+from kaggle_utilities import make_training_plot, make_category_error_plot
 
 ##### hyper params for the model #####
 layer_size = 64
@@ -65,18 +65,6 @@ def make_new_model(shape):
 
     return model
 
-##### plot training history #####
-def make_training_plot(history, i):
-    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
-    ax.plot(np.arange(len(history[metric]))+1, history[metric], 'r', label=f"training {metric}")
-    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric}"], 'g', label=f"validation {metric}")
-    ax.set_xlabel('epoch')
-    ax.set_ylabel(metric)
-    ax.set_title(f"{stamp}")
-    plt.legend(loc='best')
-    plt.savefig(f"training_KFold_{i}.png", bbox_inches='tight')
-    plt.close()
-
 ##### make predictions on the test set #####
 def make_prediction(model, i):
     test = clean_data(pd.read_csv('test.csv'))
@@ -102,7 +90,7 @@ for train_index, val_index in kfold.split(X_train, y_train):
                         epochs=epochs)
 
     model.save(f"rainfall_KFold_{i}.keras")
-    make_training_plot(history.history, i)
+    make_training_plot(history.history, f"training_KFold_{i}.png")
 
     df_train = pd.DataFrame({target_col: y_train_fold, 'id': y_train_fold})
     df_train['PREDICTION'] = np.argmax(tf.nn.softmax(model.predict(X_train_fold)), axis=1).reshape(-1,)
