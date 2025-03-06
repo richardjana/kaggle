@@ -16,8 +16,6 @@ target_col = 'rainfall'
 def clean_data(pd_df): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
 
-    pd_df.rename(columns={target_col: 'TARGET'}, inplace=True)
-
     # replace day with cyclic representation
     pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/2), axis=1)
     pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/2), axis=1)
@@ -38,8 +36,8 @@ def fit_linear_model(X, y):
     return model
 
 def x_y_pd_dataframe(pd_df):
-    y = pd_df['TARGET'].to_numpy()
-    x_df = pd_df.drop('TARGET', axis=1)
+    y = pd_df[target_col].to_numpy()
+    x_df = pd_df.drop(target_col, axis=1)
     X = x_df.to_numpy()
 
     return X, y
@@ -50,14 +48,14 @@ model = fit_linear_model(X, y)
 
 # make predictions on train / test set
 train['PREDICTION'] = model.predict(X)
-print("Training accuracy:", accuracy_score(train['TARGET'], train['PREDICTION']))
-print('Training F1:', f1_score(train['TARGET'], train['PREDICTION']))
+print("Training accuracy:", accuracy_score(train[target_col], train['PREDICTION']))
+print('Training F1:', f1_score(train[target_col], train['PREDICTION']))
 X, y = x_y_pd_dataframe(val)
 val['PREDICTION'] = model.predict(X)
-print("Validation accuracy:", accuracy_score(val['TARGET'], val['PREDICTION']))
-print('Validation F1:', f1_score(val['TARGET'], val['PREDICTION']))
+print("Validation accuracy:", accuracy_score(val[target_col], val['PREDICTION']))
+print('Validation F1:', f1_score(val[target_col], val['PREDICTION']))
 
 train.rename(columns={'pressure': 'id'}, inplace=True)
 val.rename(columns={'pressure': 'id'}, inplace=True)
-make_category_error_plot(train, 'training')
-make_category_error_plot(val, 'validation')
+make_category_error_plot(train, target_col, 'category_error_training.png', 2)
+make_category_error_plot(val, target_col, 'category_error_validation.png', 2)

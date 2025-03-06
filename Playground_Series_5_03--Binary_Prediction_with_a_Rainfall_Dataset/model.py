@@ -33,8 +33,6 @@ stamp = datetime.datetime.timestamp(datetime.datetime.now())
 def clean_data(pd_df):
     pd_df.drop('id', axis=1, inplace=True)
 
-    pd_df.rename(columns={target_col: 'TARGET'}, inplace=True)
-
     # replace day with cyclic representation
     pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/2), axis=1)
     pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/2), axis=1)
@@ -90,7 +88,7 @@ def make_prediction(model, i):
 kfold = KFold(n_splits=cv_splits, shuffle=True)
 scores = []
 
-y_train = dataframe.pop('TARGET').to_numpy()
+y_train = dataframe.pop(target_col).to_numpy()
 X_train = dataframe.to_numpy()
 
 i = 0
@@ -106,12 +104,12 @@ for train_index, val_index in kfold.split(X_train, y_train):
     model.save(f"rainfall_KFold_{i}.keras")
     make_training_plot(history.history, i)
 
-    df_train = pd.DataFrame({'TARGET': y_train_fold, 'id': y_train_fold})
+    df_train = pd.DataFrame({target_col: y_train_fold, 'id': y_train_fold})
     df_train['PREDICTION'] = np.argmax(tf.nn.softmax(model.predict(X_train_fold)), axis=1).reshape(-1,)
-    df_val = pd.DataFrame({'TARGET': y_val_fold, 'id': y_val_fold})
+    df_val = pd.DataFrame({target_col: y_val_fold, 'id': y_val_fold})
     df_val['PREDICTION'] = np.argmax(tf.nn.softmax(model.predict(X_val_fold)), axis=1).reshape(-1,)
-    make_category_error_plot(df_train, f"{i}_training", n=2)
-    make_category_error_plot(df_val, f"{i}_validation", n=2)
+    make_category_error_plot(df_train, target_col, f"category_error_{i}_training.png", 2)
+    make_category_error_plot(df_val, target_col, f"category_error_{i}_validation.png", 2)
 
     make_prediction(model, i)
 
