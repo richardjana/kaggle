@@ -24,6 +24,10 @@ epochs = int(sys.argv[5]) # 250
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 stamp = f"{n_layers}x{layer_size}_{drop_rate}_{learn_rate}_{epochs}"
 
+import sys
+sys.path.append('../')
+from kaggle_utilities import make_diagonal_plot
+
 def clean_data(pd_df, drop=True): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
 
@@ -147,30 +151,7 @@ make_training_plot(history.history)
 train['PREDICTION'] = model.predict(df_to_dataset(train, shuffle=False)).reshape(-1,)
 val['PREDICTION'] = model.predict(df_to_dataset(val, shuffle=False)).reshape(-1,)
 
-def make_diagonal_plot(train, val):
-    chart = sns.scatterplot(data=train, x='Price', y='PREDICTION', alpha=0.25)
-    sns.scatterplot(data=val, x='Price', y='PREDICTION', alpha=0.25)
-
-    min_val = min(chart.get_xlim()[0], chart.get_ylim()[0])
-    max_val = max(chart.get_xlim()[1], chart.get_ylim()[1])
-    chart.set_xlim([min_val, max_val])
-    chart.set_ylim([min_val, max_val])
-    chart.plot([min_val, max_val], [min_val, max_val], linewidth=1, color='k')
-
-    chart.set_aspect('equal')
-    chart.set_xlabel('Price')
-    chart.set_ylabel('Predicted Price')
-
-    RMSE = sklearn.metrics.root_mean_squared_error(train['Price'], train['PREDICTION'])
-    labels = [f"training ({RMSE:.2f})"]
-    RMSE = sklearn.metrics.root_mean_squared_error(val['Price'], val['PREDICTION'])
-    labels += [f"validation ({RMSE:.2f})"]
-    plt.legend(labels=labels, title='dataset (RMSE):', loc='best')
-
-    plt.savefig(f"error_{stamp}.png", bbox_inches='tight')
-    plt.close()
-
-make_diagonal_plot(train, val)
+make_diagonal_plot(train, val, 'Price', sklearn.metrics.root_mean_squared_error, 'RMSE', 'diagonal_plot.png')
 
 ##### make predictions on the test set #####
 test = pd.read_csv('test.csv') # read again, because I dropped the IDs above

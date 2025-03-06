@@ -28,4 +28,26 @@ def make_category_error_plot(pd_df, target_col, fname, n_categories):
 
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
+
+def make_diagonal_plot(train, val, target_col, metric, metric_name, fname):
+    chart = sns.scatterplot(data=train, x=target_col, y='PREDICTION', alpha=0.25)
+    sns.scatterplot(data=val, x=target_col, y='PREDICTION', alpha=0.25)
+
+    min_val = min(chart.get_xlim()[0], chart.get_ylim()[0])
+    max_val = max(chart.get_xlim()[1], chart.get_ylim()[1])
+    chart.set_xlim([min_val, max_val])
+    chart.set_ylim([min_val, max_val])
+    chart.plot([min_val, max_val], [min_val, max_val], linewidth=1, color='k')
+
+    chart.set_aspect('equal')
+    chart.set_xlabel(target_col)
+    chart.set_ylabel(f"Predicted {target_col}")
+
+    RMSE = metric(train[target_col], train['PREDICTION'])
+    labels = [f"training ({RMSE:.2f})"]
+    RMSE = metric(val[target_col], val['PREDICTION'])
+    labels += [f"validation ({RMSE:.2f})"]
+    plt.legend(labels=labels, title=f"dataset ({metric_name}):", loc='best')
+
+    plt.savefig(fname, bbox_inches='tight')
     plt.close()
