@@ -40,10 +40,9 @@ def clean_data(pd_df):
 
     return pd_df
 
-##### load data,  split into train / validation / test #####
+##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
-train, val = train_test_split(dataframe, test_size=0.2)
 
 def make_new_model(shape):
     model = tf.keras.models.Sequential([
