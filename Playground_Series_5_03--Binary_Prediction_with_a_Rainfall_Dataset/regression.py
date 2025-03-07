@@ -13,10 +13,13 @@ target_col = 'rainfall'
 def clean_data(pd_df): # clean dataset
     pd_df.drop('id', axis=1, inplace=True)
 
-    # replace day with cyclic representation
+    # replace day / winddirection with cyclic representation
     pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/2), axis=1)
     pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/2), axis=1)
     pd_df.drop('day', axis=1, inplace=True)
+    pd_df['winddirection_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.winddirection/360), axis=1)
+    pd_df['winddirection_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.winddirection/360), axis=1)
+    pd_df.drop('winddirection', axis=1, inplace=True)
 
     return pd_df
 
