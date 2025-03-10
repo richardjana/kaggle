@@ -69,10 +69,11 @@ def make_ROC_plot(pd_df, target_col, fname):
     fpr, tpr, _ = sklearn.metrics.roc_curve(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
     auc = sklearn.metrics.roc_auc_score(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
 
-    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), tight_layout=True)
+    ax.plot([0, 1], [0, 1], '--k')
     ax.plot(fpr, tpr)
     ax.set_xlabel('false positive rate')
     ax.set_ylabel('true positive rate')
-    plt.text(0.5, 0.5, f"AUC = {auc:.5f}", ha='center', va='center')
+    plt.text(0.5, 0.5, f"AUC = {auc:.5f}", ha='center', va='center', backgroundcolor='white')
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
