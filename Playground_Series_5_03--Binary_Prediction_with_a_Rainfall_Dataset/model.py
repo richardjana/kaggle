@@ -76,7 +76,7 @@ def make_prediction(model, i):
     prediction = np.argmax(tf.nn.softmax(model.predict(test.to_numpy())), axis=1).reshape(-1,)
     test = pd.read_csv('test.csv')
     test[target_col] = prediction
-    test.to_csv(f"predictions_KFold_{i}.csv", columns=['id', 'rainfall'], index=False)
+    test.to_csv(f"predictions_KFold_{i}.csv", columns=['id', target_col], index=False)
 
 kfold = KFold(n_splits=cv_splits, shuffle=True)
 scores = []
