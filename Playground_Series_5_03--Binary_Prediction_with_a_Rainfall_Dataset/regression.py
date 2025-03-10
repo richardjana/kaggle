@@ -29,12 +29,12 @@ def clean_data(pd_df): # clean dataset
 
 ##### load data,  split into train / validation / test #####
 dataframe = clean_data(pd.read_csv('train.csv'))
-dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
+#dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'))
 
 def fit_linear_model(X, y):
-    model = LogisticRegression(penalty='l2', C=0.1)
+    model = LogisticRegression(penalty='l2', C=0.1, max_iter=10000)
     model.fit(X, y)
 
     return model
