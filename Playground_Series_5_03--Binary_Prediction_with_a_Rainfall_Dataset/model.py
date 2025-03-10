@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import make_training_plot, make_category_error_plot
+from kaggle_utilities import make_training_plot, make_category_error_plot, make_ROC_plot
 
 ##### hyper params for the model #####
 layer_size = 64
@@ -98,11 +98,20 @@ for train_index, val_index in kfold.split(X_train, y_train):
     make_training_plot(history.history, f"training_KFold_{i}.png")
 
     df_train = pd.DataFrame({target_col: y_train_fold, 'id': y_train_fold})
-    df_train['PREDICTION'] = np.argmax(tf.nn.softmax(model.predict(X_train_fold)), axis=1).reshape(-1,)
+    probability_prediction = tf.nn.softmax(model.predict(X_train_fold))
+    df_train['PREDICTION'] = np.argmax(probability_prediction, axis=1).reshape(-1,)
+    df_train['PREDICTION_PROBABILITY'] = probability_prediction[:,-1]
+
     df_val = pd.DataFrame({target_col: y_val_fold, 'id': y_val_fold})
-    df_val['PREDICTION'] = np.argmax(tf.nn.softmax(model.predict(X_val_fold)), axis=1).reshape(-1,)
+    probability_prediction = tf.nn.softmax(model.predict(X_val_fold))
+    df_val['PREDICTION'] = np.argmax(probability_prediction, axis=1).reshape(-1,)
+    df_val['PREDICTION_PROBABILITY'] = probability_prediction[:,-1]
+
     make_category_error_plot(df_train, target_col, f"category_error_{i}_training.png", 2)
     make_category_error_plot(df_val, target_col, f"category_error_{i}_validation.png", 2)
+
+    make_ROC_plot(df_train, target_col, f"ROC_KFold_{i}_training.png")
+    make_ROC_plot(df_val, target_col, f"ROC_KFold_{i}_validation.png")
 
     make_prediction(model, i)
 
