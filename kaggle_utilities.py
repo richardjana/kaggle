@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import sklearn
 
 def make_category_error_plot(pd_df, target_col, fname, n_categories):
     h_map = np.zeros((n_categories, n_categories))
@@ -61,5 +62,17 @@ def make_training_plot(history, fname):
     ax.set_xlabel('epoch')
     ax.set_ylabel(metric)
     plt.legend(loc='best')
+    plt.savefig(fname, bbox_inches='tight')
+    plt.close()
+
+def make_ROC_plot(pd_df, target_col, fname):
+    fpr, tpr, _ = sklearn.metrics.roc_curve(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
+    auc = sklearn.metrics.roc_auc_score(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    ax.plot(fpr, tpr)
+    ax.set_xlabel('false positive rate')
+    ax.set_ylabel('true positive rate')
+    plt.text(0.5, 0.5, f"AUC = {auc:.5f}", ha='center', va='center')
     plt.savefig(fname, bbox_inches='tight')
     plt.close()

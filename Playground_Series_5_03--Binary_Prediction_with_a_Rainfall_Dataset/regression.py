@@ -6,7 +6,7 @@ from sklearn.linear_model import LogisticRegression
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import make_category_error_plot
+from kaggle_utilities import make_category_error_plot, make_ROC_plot
 
 target_col = 'rainfall'
 
@@ -33,7 +33,7 @@ train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'))
 
 def fit_linear_model(X, y):
-    model = LogisticRegression()
+    model = LogisticRegression(penalty='l2', C=0.1)
     model.fit(X, y)
 
     return model
@@ -51,14 +51,27 @@ model = fit_linear_model(X, y)
 
 # make predictions on train / test set
 train['PREDICTION'] = model.predict(X)
+train['PREDICTION_PROBABILITY'] = model.predict_proba(X)[::,1]
 print("Training accuracy:", accuracy_score(train[target_col], train['PREDICTION']))
 print('Training F1:', f1_score(train[target_col], train['PREDICTION']))
+print('Training ROC AUC:', sklearn.metrics.roc_auc_score(train[target_col], train['PREDICTION_PROBABILITY']))
 X, y = x_y_pd_dataframe(val)
 val['PREDICTION'] = model.predict(X)
+val['PREDICTION_PROBABILITY'] = model.predict_proba(X)[::,1]
 print("Validation accuracy:", accuracy_score(val[target_col], val['PREDICTION']))
 print('Validation F1:', f1_score(val[target_col], val['PREDICTION']))
+print('Validation ROC AUC:', sklearn.metrics.roc_auc_score(val[target_col], val['PREDICTION_PROBABILITY']))
 
 train.rename(columns={'pressure': 'id'}, inplace=True)
 val.rename(columns={'pressure': 'id'}, inplace=True)
 make_category_error_plot(train, target_col, 'category_error_training.png', 2)
 make_category_error_plot(val, target_col, 'category_error_validation.png', 2)
+
+make_ROC_plot(train, target_col, 'ROC_training.png')
+make_ROC_plot(val, target_col, 'ROC_validation.png')
+
+X_test = clean_data(pd.read_csv('test.csv')).to_numpy()
+prediction = model.predict(X_test)
+test = pd.read_csv('test.csv')
+test[target_col] = prediction
+test.to_csv(f"predictions_regression.csv", columns=['id', target_col], index=False)
