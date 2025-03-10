@@ -33,6 +33,9 @@ stamp = datetime.datetime.timestamp(datetime.datetime.now())
 def clean_data(pd_df):
     pd_df.drop('id', axis=1, inplace=True)
 
+    # 1 missing value in 'winddirection'
+    pd_df['winddirection'].fillna(pd_df['winddirection'].mean(), inplace=True)
+
     # replace day / winddirection with cyclic representation
     pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/2), axis=1)
     pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/2), axis=1)
