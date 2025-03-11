@@ -80,6 +80,7 @@ def make_prediction(model, i):
 
 kfold = KFold(n_splits=cv_splits, shuffle=True)
 scores = []
+roc_auc = []
 
 y_train = dataframe.pop(target_col).to_numpy()
 X_train = dataframe.to_numpy()
@@ -117,6 +118,7 @@ for train_index, val_index in kfold.split(X_train, y_train):
 
     i += 1
     scores.append(history.history[f"val_{metric}"][-1])
+    roc_auc.append(sklearn.metrics.roc_auc_score(df_val[target_col], df_val['PREDICTION_PROBABILITY']))
 
-avg_score = np.mean(scores) # Calculate the average cross-validation score
-print(f'Average cross-validation score: {avg_score:.4f} ({scores})')
+print(f'Average cross-validation score: {np.mean(scores):.4f} ({scores})')
+print(f'Average cross-validation ROC AUC: {np.mean(roc_auc):.4f} ({roc_auc})')
