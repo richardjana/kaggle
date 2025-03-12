@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import make_training_plot, make_category_error_plot, make_ROC_plot
+from kaggle_utilities import min_max_scaler, make_training_plot, make_category_error_plot, make_ROC_plot
 
 ##### hyper params for the model #####
 layer_size = 64
@@ -33,7 +33,7 @@ stamp = datetime.datetime.timestamp(datetime.datetime.now())
 def clean_data(pd_df):
     # day column behaves suspiciously
     pd_df['day'] = pd_df.apply(lambda row: (row.id + pd_df['day'][0]) % 365, axis=1)
-    
+
     pd_df.drop('id', axis=1, inplace=True)
 
     # 1 missing value in 'winddirection'
@@ -52,6 +52,11 @@ def clean_data(pd_df):
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
+test = clean_data(pd.read_csv('test.csv'))
+
+### scale columns (not cyclical representations, not target column) ###
+scale_columns = [col for col in dataframe.keys() if (col[-4:] not in ['_sin', '_cos']) and (col != target_col)]
+dataframe, test = min_max_scaler([dataframe, test], scale_columns)
 
 def make_new_model(shape):
     model = tf.keras.models.Sequential([
@@ -75,11 +80,10 @@ def make_new_model(shape):
 
 ##### make predictions on the test set #####
 def make_prediction(model, i):
-    test = clean_data(pd.read_csv('test.csv'))
     prediction = np.argmax(tf.nn.softmax(model.predict(test.to_numpy())), axis=1).reshape(-1,)
-    test = pd.read_csv('test.csv')
-    test[target_col] = prediction
-    test.to_csv(f"predictions_KFold_{i}.csv", columns=['id', target_col], index=False)
+    test_df = pd.read_csv('test.csv')
+    test_df[target_col] = prediction
+    test_df.to_csv(f"predictions_KFold_{i}.csv", columns=['id', target_col], index=False)
 
 kfold = KFold(n_splits=cv_splits, shuffle=True)
 scores = []
