@@ -7,7 +7,7 @@ from sklearn.linear_model import LogisticRegression
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import make_category_error_plot, make_ROC_plot
+from kaggle_utilities import make_category_error_plot, make_ROC_plot, min_max_scaler
 
 target_col = 'rainfall'
 
@@ -35,6 +35,10 @@ dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
 test = clean_data(pd.read_csv('test.csv'))
+
+### scale columns (not cyclical representations, not target column) ###
+scale_columns = [col for col in train.keys() if (col[-4:] not in ['_sin', '_cos']) and (col != target_col)]
+train, val, test = min_max_scaler([train, val, test], scale_columns)
 
 def fit_linear_model(X, y):
     model = LogisticRegression(penalty='l2', C=0.1, max_iter=10000)

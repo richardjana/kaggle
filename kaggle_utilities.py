@@ -79,3 +79,17 @@ def make_ROC_plot(pd_df: pd.DataFrame, target_col: str, fname: str) -> None:
     plt.text(0.5, 0.5, f"AUC = {auc:.5f}", ha='center', va='center', backgroundcolor='white')
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
+
+def min_max_scaler(df_list: List[pd.DataFrame], col_names: List[str]) -> List[pd.DataFrame]:
+    # min/max scale columns based on the data in all DataFrames to catch extreme values
+
+    for col in col_names:
+        min_val = np.inf
+        max_val = -np.inf
+        for df in df_list:
+            min_val = min(min_val, df[col].min())
+            max_val = max(max_val, df[col].max())
+        for df in df_list:
+            df[col] = (df[col]-min_val) / (max_val-min_val)
+
+    return df_list
