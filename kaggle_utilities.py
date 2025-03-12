@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.patheffects as PathEffects
@@ -6,8 +7,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+from typing import Dict, List
 
-def make_category_error_plot(pd_df, target_col, fname, n_categories):
+def make_category_error_plot(pd_df: pd.DataFrame, target_col: str, fname: str, n_categories: int) -> None:
     h_map = np.zeros((n_categories, n_categories))
     counts = pd_df[['id', target_col, 'PREDICTION']].groupby([target_col, 'PREDICTION'], as_index=False).count().values.tolist()
     for r, p, c in counts:
@@ -30,7 +32,7 @@ def make_category_error_plot(pd_df, target_col, fname, n_categories):
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
-def make_diagonal_plot(train, val, target_col, metric, metric_name, fname):
+def make_diagonal_plot(train: pd.DataFrame, val: pd.DataFrame, target_col: str, metric: Callable[[List[float], List[float]], float], metric_name: str, fname: str) -> None:
     chart = sns.scatterplot(data=train, x=target_col, y='PREDICTION', alpha=0.25)
     sns.scatterplot(data=val, x=target_col, y='PREDICTION', alpha=0.25)
 
@@ -53,7 +55,7 @@ def make_diagonal_plot(train, val, target_col, metric, metric_name, fname):
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
-def make_training_plot(history, fname):
+def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
     metric = list(history.keys())[0]
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
@@ -65,7 +67,7 @@ def make_training_plot(history, fname):
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
-def make_ROC_plot(pd_df, target_col, fname):
+def make_ROC_plot(pd_df: pd.DataFrame, target_col: str, fname: str) -> None:
     fpr, tpr, _ = sklearn.metrics.roc_curve(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
     auc = sklearn.metrics.roc_auc_score(pd_df[target_col], pd_df['PREDICTION_PROBABILITY'])
 
