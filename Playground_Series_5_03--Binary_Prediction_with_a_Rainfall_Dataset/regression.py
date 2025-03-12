@@ -12,6 +12,9 @@ from kaggle_utilities import make_category_error_plot, make_ROC_plot
 target_col = 'rainfall'
 
 def clean_data(pd_df): # clean dataset
+    # day column behaves suspiciously
+    pd_df['day'] = pd_df.apply(lambda row: (row.id + pd_df['day'][0]) % 365, axis=1)
+
     pd_df.drop('id', axis=1, inplace=True)
 
     # 1 missing value in 'winddirection'

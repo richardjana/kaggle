@@ -31,6 +31,9 @@ metric = 'accuracy'
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
 def clean_data(pd_df):
+    # day column behaves suspiciously
+    pd_df['day'] = pd_df.apply(lambda row: (row.id + pd_df['day'][0]) % 365, axis=1)
+    
     pd_df.drop('id', axis=1, inplace=True)
 
     # 1 missing value in 'winddirection'
