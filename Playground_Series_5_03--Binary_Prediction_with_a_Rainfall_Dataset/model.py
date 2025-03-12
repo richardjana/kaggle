@@ -37,8 +37,8 @@ def clean_data(pd_df):
     pd_df['winddirection'].fillna(pd_df['winddirection'].mean(), inplace=True)
 
     # replace day / winddirection with cyclic representation
-    pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/2), axis=1)
-    pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/2), axis=1)
+    pd_df['day_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.day/365), axis=1)
+    pd_df['day_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.day/365), axis=1)
     pd_df.drop('day', axis=1, inplace=True)
     pd_df['winddirection_sin'] = pd_df.apply(lambda row: np.sin(2*np.pi*row.winddirection/360), axis=1)
     pd_df['winddirection_cos'] = pd_df.apply(lambda row: np.cos(2*np.pi*row.winddirection/360), axis=1)
