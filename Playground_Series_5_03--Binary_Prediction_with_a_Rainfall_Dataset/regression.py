@@ -31,10 +31,10 @@ def clean_data(pd_df): # clean dataset
     return pd_df
 
 ##### load data,  split into train / validation / test #####
-dataframe = clean_data(pd.read_csv('train.csv'))
+dataframe = clean_data(pd.read_csv('train.csv').rename(columns={'temparature': 'temperature'}))
 #dataframe, rest = train_test_split(dataframe, test_size=0.80) # reduce dataset size for testing
 train, val = train_test_split(dataframe, test_size=0.2)
-test = clean_data(pd.read_csv('test.csv'))
+test = clean_data(pd.read_csv('test.csv').rename(columns={'temparature': 'temperature'}))
 
 ### scale columns (not cyclical representations, not target column) ###
 scale_columns = [col for col in train.keys() if (col[-4:] not in ['_sin', '_cos']) and (col != target_col)]
@@ -78,7 +78,7 @@ make_category_error_plot(val, target_col, 'category_error_validation.png', 2)
 make_ROC_plot(train, target_col, 'ROC_training.png')
 make_ROC_plot(val, target_col, 'ROC_validation.png')
 
-X_test = clean_data(pd.read_csv('test.csv')).to_numpy()
+X_test = clean_data(pd.read_csv('test.csv').rename(columns={'temparature': 'temperature'})).to_numpy()
 prediction = model.predict(X_test)
 test = pd.read_csv('test.csv')
 test[target_col] = prediction
