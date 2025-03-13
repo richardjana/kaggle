@@ -78,7 +78,7 @@ make_category_error_plot(val, target_col, 'category_error_validation.png', 2)
 make_ROC_plot(train, target_col, 'ROC_training.png')
 make_ROC_plot(val, target_col, 'ROC_validation.png')
 
-X_test = clean_data(pd.read_csv('test.csv').rename(columns={'temparature': 'temperature'})).to_numpy()
+X_test = test.to_numpy()
 prediction = model.predict(X_test)
 test = pd.read_csv('test.csv')
 test[target_col] = prediction
