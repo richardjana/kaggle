@@ -20,7 +20,7 @@ layer_size = 64
 L2_reg = 0.01 /10
 drop_rate = 0.25
 learning_rate = 0.00001
-epochs = 10
+epochs = 1000
 cv_splits = 5
 target_col = 'Listening_Time_minutes'
 
@@ -69,6 +69,9 @@ def clean_data(pd_df, drop=True):
     pd_df = pd.get_dummies(pd_df, columns=['Podcast_Name', 'Genre'], drop_first=True, dtype =int)
 
     return pd_df
+
+def RMSE(arr_1, arr_2):
+    return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
 
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
@@ -130,7 +133,7 @@ for train_index, val_index in kfold.split(X_train, y_train):
     df_val = pd.DataFrame({target_col: y_val_fold, 'id': y_val_fold})
     df_val['PREDICTION'] = model.predict(X_val_fold)
 
-    make_diagonal_plot(df_train, df_val, target_col, loss_function, 'RMSE', f"error_diagonal_{i}.png")
+    make_diagonal_plot(df_train, df_val, target_col, RMSE, 'RMSE', f"error_diagonal_{i}.png")
 
     make_prediction(model, i)
 
