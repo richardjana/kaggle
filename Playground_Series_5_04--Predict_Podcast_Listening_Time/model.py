@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import sys
 sys.path.append('../')
-from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot
+from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot, RMSE
 
 ##### hyper params for the model #####
 layer_size = 64
@@ -27,17 +27,21 @@ target_col = 'Listening_Time_minutes'
 loss_function = tf.keras.losses.MeanSquaredError()
 metric = 'root_mean_squared_error'
 
-stamp = datetime.datetime.timestamp(datetime.datetime.now())
 
 def clean_data(pd_df, drop=True):
     pd_df.drop('id', axis=1, inplace=True)
 
+    # fix erroneous values / data points
+    # Episode_Length_minutes > 24*60 (one day)
+    pd_df.loc[pd_df['Episode_Length_minutes']>24*60, 'Episode_Length_minutes'] = pd_df['Episode_Length_minutes'].median()
+    # Number_of_Ads > 10 (arbitrary)
+    pd_df.loc[pd_df['Number_of_Ads']>10, 'Number_of_Ads'] = pd_df['Number_of_Ads'].median()
+
     if drop: # drop NaN lines
         pd_df.dropna(axis=0, how='any', inplace=True)
     else: # for the test set, fill with most common / average
-        pd_df['Episode_Length_minutes'].fillna(pd_df['Episode_Length_minutes'].median(), inplace=True)
-        pd_df['Guest_Popularity_percentage'].fillna(pd_df['Guest_Popularity_percentage'].median(), inplace=True)
-        pd_df['Number_of_Ads'].fillna(pd_df['Number_of_Ads'].median(), inplace=True)
+        for col in ['Episode_Length_minutes', 'Guest_Popularity_percentage', 'Number_of_Ads']:
+            pd_df[col].fillna(pd_df[col].median(), inplace=True)
 
     # make 'Episode_Title' integer column (all follow 'Episode_<number> pattern)
     pd_df['Episode_Title'] = pd_df['Episode_Title'].map(lambda et: int(et.split()[1]))
@@ -69,9 +73,6 @@ def clean_data(pd_df, drop=True):
     pd_df = pd.get_dummies(pd_df, columns=['Podcast_Name', 'Genre'], drop_first=True, dtype =int)
 
     return pd_df
-
-def RMSE(arr_1, arr_2):
-    return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
 
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
@@ -127,10 +128,10 @@ for train_index, val_index in kfold.split(X_train, y_train):
     model.save(f"rainfall_KFold_{i}.keras")
     make_training_plot(history.history, f"training_KFold_{i}.png")
 
-    df_train = pd.DataFrame({target_col: y_train_fold, 'id': y_train_fold})
+    df_train = pd.DataFrame({target_col: y_train_fold})
     df_train['PREDICTION'] = model.predict(X_train_fold)
 
-    df_val = pd.DataFrame({target_col: y_val_fold, 'id': y_val_fold})
+    df_val = pd.DataFrame({target_col: y_val_fold})
     df_val['PREDICTION'] = model.predict(X_val_fold)
 
     make_diagonal_plot(df_train, df_val, target_col, RMSE, 'RMSE', f"error_diagonal_{i}.png")
