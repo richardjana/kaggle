@@ -85,7 +85,7 @@ def make_diagonal_plot(train: pd.DataFrame,
     plt.close()
 
 def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
-    """ Make plot to visualize the training progress.
+    """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
     Args:
         history (Dict[str, List[int]]): History from model.fit.
         fname (str): File name for the plot image.
@@ -100,6 +100,10 @@ def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
     ax.set_ylabel(metric)
     plt.legend(loc='best')
     plt.savefig(fname, bbox_inches='tight')
+
+    ax.set_yscale('log')
+    plt.savefig(f"{fname[:-4]}_LOG.png", bbox_inches='tight')
+
     plt.close()
 
 def make_ROC_plot(pd_df: pd.DataFrame, target_col: str, fname: str) -> None:
