@@ -27,57 +27,60 @@ target_col = 'Listening_Time_minutes'
 loss_function = tf.keras.losses.MeanSquaredError()
 metric = 'root_mean_squared_error'
 
-
-def clean_data(pd_df, drop=True):
+# TODO: Apply to all DataFrames together, so the median values are consistent?
+# or rather drop from training and replace in test? (There, local or global?)
+def clean_data(pd_df: pd.DataFrame, drop: bool =True) -> pd.DataFrame:
     pd_df.drop('id', axis=1, inplace=True)
+   
+    if drop is True: # fix erroneous values / data points ...
+        pd_df.drop(pd_df[pd_df['Episode_Length_minutes']>180].index, inplace=True)
+        pd_df.drop(pd_df[pd_df['Number_of_Ads']>10].index, inplace=True)
+    else:
+        pd_df.loc[pd_df['Episode_Length_minutes']>180, 'Episode_Length_minutes'] = pd_df['Episode_Length_minutes'].median()
+        pd_df.loc[pd_df['Number_of_Ads']>10, 'Number_of_Ads'] = pd_df['Number_of_Ads'].median()
 
-    # fix erroneous values / data points
-    # Episode_Length_minutes > 24*60 (one day)
-    pd_df.loc[pd_df['Episode_Length_minutes']>24*60, 'Episode_Length_minutes'] = pd_df['Episode_Length_minutes'].median()
-    # Number_of_Ads > 10 (arbitrary)
-    pd_df.loc[pd_df['Number_of_Ads']>10, 'Number_of_Ads'] = pd_df['Number_of_Ads'].median()
-
-    if drop: # drop NaN lines
+    if drop is True: # drop NaN lines
         pd_df.dropna(axis=0, how='any', inplace=True)
     else: # for the test set, fill with most common / average
         for col in ['Episode_Length_minutes', 'Guest_Popularity_percentage', 'Number_of_Ads']:
             pd_df[col].fillna(pd_df[col].median(), inplace=True)
 
-    # make 'Episode_Title' integer column (all follow 'Episode_<number> pattern)
-    pd_df['Episode_Title'] = pd_df['Episode_Title'].map(lambda et: int(et.split()[1]))
+    # make 'Episode_Title' integer column (all follow 'Episode_<number> pattern) ...
+    #pd_df['Episode_Title'] = pd_df['Episode_Title'].map(lambda et: int(et.split()[1]))
+    # ... or drop it altogether?
+    pd_df.drop('Episode_Title', axis=1, inplace=True)
 
-    # convert 'Publication_Day' and 'Publication_Time' columns to cyclic representation
-    pd_df['Publication_Day'] = pd_df['Publication_Day'].map({'Monday': 0,
-                                                             'Tuesday': 1,
-                                                             'Wednesday': 2,
-                                                             'Thursday': 3,
-                                                             'Friday': 4,
-                                                             'Saturday': 5,
-                                                             'Sunday': 6})
-    pd_df['day_sin'] = pd_df['Publication_Day'].map(lambda pub_day: np.sin(2*np.pi*pub_day/7))
-    pd_df['day_cos'] = pd_df['Publication_Day'].map(lambda pub_day: np.cos(2*np.pi*pub_day/7))
-    pd_df.drop('Publication_Day', axis=1, inplace=True)
-    pd_df['Publication_Time'] = pd_df['Publication_Time'].map({'Morning': 8,
-                                                               'Afternoon': 14,
-                                                               'Evening': 18,
-                                                               'Night': 0})
-    pd_df['time_sin'] = pd_df['Publication_Time'].map(lambda pub_time: np.sin(2*np.pi*pub_time/24))
-    pd_df['time_cos'] = pd_df['Publication_Time'].map(lambda pub_time: np.cos(2*np.pi*pub_time/24))
-    pd_df.drop('Publication_Time', axis=1, inplace=True)
-
-    # map to numeric columns
-    pd_df['Episode_Sentiment'] = pd_df['Episode_Sentiment'].map({'Negative': -1, 'Neutral': 0, 'Positive': +1})
-    # .fillna(pd_df['Episode_Sentiment'])
-
-    # one-hot encode class columns; drop_first to avoid multicollinearity
-    pd_df = pd.get_dummies(pd_df, columns=['Podcast_Name', 'Genre'], drop_first=True, dtype =int)
+    if drop is True: # drop / replace outliers / implausible data points
+        pd_df.drop(pd_df[pd_df['Host_Popularity_percentage']<20].index, inplace=True)
+        pd_df.drop(pd_df[pd_df['Host_Popularity_percentage']>100].index, inplace=True)
+        pd_df.drop(pd_df[pd_df['Guest_Popularity_percentage']<0].index, inplace=True)
+        pd_df.drop(pd_df[pd_df['Guest_Popularity_percentage']>100].index, inplace=True)
+    else:
+        col = 'Host_Popularity_percentage' # 20 <= Host_Popularity_percentage <= 100
+        valid_median = pd_df[col][(pd_df[col]>=20) & (pd_df[col]<=100)].median()
+        pd_df.loc[pd_df[(pd_df[col]<20) | (pd_df[col]>100)].index, col] = valid_median
+        col = 'Guest_Popularity_percentage' # 0 <= Guest_Popularity_percentage <= 100
+        valid_median = pd_df[col][(pd_df[col]>=0) & (pd_df[col]<=100)].median()
+        pd_df.loc[pd_df[(pd_df[col]<0) | (pd_df[col]>100)].index, col] = valid_median
 
     return pd_df
+
+def target_encoding(df_train, df_test):
+    for col in ['Podcast_Name', 'Genre', 'Publication_Day', 'Publication_Time', 'Number_of_Ads', 'Episode_Sentiment']:
+        groupby_df = df_train[['Listening_Time_minutes', col]].groupby([col]).mean()
+        groupby_df.sort_values(by='Listening_Time_minutes', inplace=True)
+        mapping_dict = groupby_df['Listening_Time_minutes'].to_dict()
+        df_train[col] = df_train[col].map(mapping_dict)
+        df_test[col] = df_test[col].map(mapping_dict)
+
+    return df_train, df_test
 
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.95) # reduce dataset size for testing
 test = clean_data(pd.read_csv('test.csv'), drop=False)
+
+dataframe, test = target_encoding(dataframe, test)
 
 ### scale columns (not cyclical representations, not target column) ###
 scale_columns = [col for col in dataframe.keys() if (col[-4:] not in ['_sin', '_cos']) and (col != target_col)]
