@@ -26,7 +26,7 @@ target_col = 'rainfall'
 
 
 loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-metric = 'accuracy'
+metric = 'accuracy' # tf.keras.metrics.AUC(from_logits=True)
 
 stamp = datetime.datetime.timestamp(datetime.datetime.now())
 

@@ -109,9 +109,17 @@ for col_name in categorical_columns:
 
 all_features = tf.keras.layers.concatenate(encoded_features)
 
-x = tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.01))(all_features)
-x = tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
-x = tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(all_features)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+x = tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
 x = tf.keras.layers.Dropout(0.10)(x)
 output = tf.keras.layers.Dense(1)(x)
 
@@ -123,7 +131,7 @@ model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001), # 0.003
 
 history = model.fit(train_ds,
           validation_data=val_ds,
-          epochs=500)#,
+          epochs=100)#,
           #callbacks=[tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-3 * 10 ** (epoch / 30))])
 
 model.save(f"insurance_{stamp}.keras")
