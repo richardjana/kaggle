@@ -193,6 +193,7 @@ def count_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataF
         if check_duplicate_counts(mapping_dict):
             print(f"Duplicate counts in column '{col}'!")
         df_train[col] = df_train[col].map(mapping_dict).astype(int)
+        df_val[col] = df_val[col].map(mapping_dict).astype(int)
         df_test[col] = df_test[col].map(mapping_dict).astype(int)
 
     return (df_train, df_val, df_test)
