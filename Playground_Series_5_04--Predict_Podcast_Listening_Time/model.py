@@ -147,7 +147,8 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
         DataFrames with encoded columns.
     """
     for col in col_list:
-        groupby_df = df_train[[target_col, col]].groupby([col]).mean()
+        groupby_df = df_train[[target_col, col]].groupby(
+            [col], observed=True).mean()
         groupby_df.sort_values(by=target_col, inplace=True)
         mapping_dict = groupby_df[target_col].to_dict()
         df_train[col] = df_train[col].map(mapping_dict).astype(float)
