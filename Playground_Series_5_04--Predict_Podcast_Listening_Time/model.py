@@ -256,8 +256,8 @@ scores = []
 
 i = 0
 for train_index, val_index in kfold.split(dataframe):
-    train_df = dataframe.iloc[train_index]
-    val_df = dataframe.iloc[val_index]
+    train_df = dataframe.iloc[train_index].copy()
+    val_df = dataframe.iloc[val_index].copy()
 
     # encode category columns for the fold
     category_columns = dataframe.select_dtypes(
