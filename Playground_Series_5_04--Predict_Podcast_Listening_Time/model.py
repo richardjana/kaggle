@@ -15,16 +15,16 @@ sys.path.append('../')
 from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot, RMSE  # noqa
 
 ##### hyper params for the model #####
-layer_size = 64
-L2_reg = 0.01 / 10
-drop_rate = 0.25
-learning_rate = 0.00001
-epochs = 1000
-cv_splits = 5
-target_col = 'Listening_Time_minutes'
+LAYER_SIZE = 64
+L2_REG = 0.01 / 10
+DROP_RATE = 0.25
+LEARNING_RATE = 0.00001
+NUM_EPOCHS = 1000
+NUM_CV_SPLITS = 5
+TARGET_COL = 'Listening_Time_minutes'
 
-loss_function = tf.keras.losses.MeanSquaredError()
-metric = 'root_mean_squared_error'
+LOSS_FUNCTION = tf.keras.losses.MeanSquaredError()
+METRIC = 'root_mean_squared_error'
 
 
 def clean_data(pd_df: pd.DataFrame, drop: bool = True) -> pd.DataFrame:
@@ -220,21 +220,21 @@ def make_new_model(shape: int) -> tf.keras.Model:
     """
     model = tf.keras.models.Sequential([
         tf.keras.Input(shape=(shape,)),
-        tf.keras.layers.Dense(layer_size, activation='relu',
-                              kernel_regularizer=tf.keras.regularizers.l2(L2_reg)),
-        tf.keras.layers.Dropout(drop_rate),
-        tf.keras.layers.Dense(layer_size, activation='relu',
-                              kernel_regularizer=tf.keras.regularizers.l2(L2_reg)),
-        tf.keras.layers.Dropout(drop_rate),
-        tf.keras.layers.Dense(layer_size, activation='relu',
-                              kernel_regularizer=tf.keras.regularizers.l2(L2_reg)),
-        tf.keras.layers.Dropout(drop_rate),
+        tf.keras.layers.Dense(LAYER_SIZE, activation='relu',
+                              kernel_regularizer=tf.keras.regularizers.l2(L2_REG)),
+        tf.keras.layers.Dropout(DROP_RATE),
+        tf.keras.layers.Dense(LAYER_SIZE, activation='relu',
+                              kernel_regularizer=tf.keras.regularizers.l2(L2_REG)),
+        tf.keras.layers.Dropout(DROP_RATE),
+        tf.keras.layers.Dense(LAYER_SIZE, activation='relu',
+                              kernel_regularizer=tf.keras.regularizers.l2(L2_REG)),
+        tf.keras.layers.Dropout(DROP_RATE),
         tf.keras.layers.Dense(1)
     ])
 
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-                  loss=loss_function,
-                  metrics=[metric])
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+                  loss=LOSS_FUNCTION,
+                  metrics=[METRIC])
 
     return model
 
@@ -246,12 +246,12 @@ def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, i: int
         i (int): Index of the cross-validation fold, used in the file name.
     """
     submit_df = pd.read_csv('sample_submission.csv')
-    submit_df[target_col] = model.predict(test_df_encoded.to_numpy())
+    submit_df[TARGET_COL] = model.predict(test_df_encoded.to_numpy())
     submit_df.to_csv(f"predictions_KFold_{i}.csv", columns=[
-        'id', target_col], index=False)
+        'id', TARGET_COL], index=False)
 
 
-kfold = KFold(n_splits=cv_splits, shuffle=True)
+kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True)
 scores = []
 
 i = 0
@@ -263,24 +263,24 @@ for train_index, val_index in kfold.split(dataframe):
     category_columns = dataframe.select_dtypes(
         include=['category', 'object']).columns.tolist()
     train_df_enc, val_df_enc, test_df_enc = target_encode(
-        train_df, val_df, test, target_col, category_columns)
+        train_df, val_df, test, TARGET_COL, category_columns)
     # train_df_enc, val_df_enc, test_df_enc = count_encode(
     #   train_df, val_df, test, category_columns)
 
     ### scale columns (not cyclical representations, not target column) ###
-    scale_columns = [col for col in dataframe.keys() if (col != target_col)]
+    scale_columns = [col for col in dataframe.keys() if (col != TARGET_COL)]
     train_df_enc, val_df_enc, test_df_enc = min_max_scaler(
         [train_df_enc, val_df_enc, test_df_enc], scale_columns)
 
-    y_train = train_df_enc.pop(target_col).to_numpy()
+    y_train = train_df_enc.pop(TARGET_COL).to_numpy()
     X_train = train_df_enc.to_numpy()
-    y_val = val_df_enc.pop(target_col).to_numpy()
+    y_val = val_df_enc.pop(TARGET_COL).to_numpy()
     X_val = val_df_enc.to_numpy()
 
     model = make_new_model(shape=X_train.shape[1])
     history = model.fit(X_train, y_train,
                         validation_data=(X_val, y_val),
-                        epochs=epochs)
+                        epochs=NUM_EPOCHS)
 
     model.save(f"rainfall_KFold_{i}.keras")
     make_training_plot(history.history, f"training_KFold_{i}.png")
@@ -288,12 +288,12 @@ for train_index, val_index in kfold.split(dataframe):
     train_df['PREDICTION'] = model.predict(X_train)
     val_df['PREDICTION'] = model.predict(X_val)
 
-    make_diagonal_plot(train_df, val_df, target_col, RMSE,
+    make_diagonal_plot(train_df, val_df, TARGET_COL, RMSE,
                        'RMSE', f"error_diagonal_{i}.png")
 
     make_prediction(model, test_df_enc, i)
 
     i += 1
-    scores.append(history.history[f"val_{metric}"][-1])
+    scores.append(history.history[f"val_{METRIC}"][-1])
 
 print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
