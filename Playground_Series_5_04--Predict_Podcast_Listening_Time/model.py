@@ -264,7 +264,7 @@ for train_index, val_index in kfold.split(dataframe):
     train_df_enc, val_df_enc, test_df_enc = target_encode(
         train_df, val_df, test, target_col, category_columns)
     # train_df_enc, val_df_enc, test_df_enc = count_encode(
-    #   train_df, val_df, test, target_col, category_columns)
+    #   train_df, val_df, test, category_columns)
 
     ### scale columns (not cyclical representations, not target column) ###
     scale_columns = [col for col in dataframe.keys() if (col != target_col)]
