@@ -239,7 +239,7 @@ def make_new_model(shape: int) -> tf.keras.Model:
     return model
 
 
-def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, i: int) -> None:
+def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, cv_index: int) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
         model (_type_): Model used for the prediction.
@@ -247,7 +247,7 @@ def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, i: int
     """
     submit_df = pd.read_csv('sample_submission.csv')
     submit_df[TARGET_COL] = model.predict(test_df_encoded.to_numpy())
-    submit_df.to_csv(f"predictions_KFold_{i}.csv", columns=[
+    submit_df.to_csv(f"predictions_KFold_{cv_index}.csv", columns=[
         'id', TARGET_COL], index=False)
 
 
@@ -268,7 +268,7 @@ for train_index, val_index in kfold.split(dataframe):
     #   train_df, val_df, test, category_columns)
 
     ### scale columns (not cyclical representations, not target column) ###
-    scale_columns = [col for col in dataframe.keys() if (col != TARGET_COL)]
+    scale_columns = [col for col in dataframe.keys() if col != TARGET_COL]
     train_df_enc, val_df_enc, test_df_enc = min_max_scaler(
         [train_df_enc, val_df_enc, test_df_enc], scale_columns)
 
