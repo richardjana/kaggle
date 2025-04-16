@@ -2,8 +2,8 @@ from itertools import combinations
 import sys
 from typing import Dict, List, Tuple
 
+from collections import Counter
 import keras
-
 import numpy as np
 import pandas as pd
 # import sklearn
@@ -146,7 +146,8 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
         target_col (str): Name of the target column to use for the encoding.
         col_list (List[str]): List of column names to target encode.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: Training and test DataFrames with encoded columns.
+        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
+        DataFrames with encoded columns.
     """
     for col in col_list:
         groupby_df = df_train[[target_col, col]].groupby([col]).mean()
@@ -159,16 +160,18 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
     return (df_train, df_val, df_test)
 
 
-def count_encode(df_train: pd.DataFrame, df_test: pd.DataFrame, target_col: str,
+def count_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame,
                  col_list: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """ Encode categorical columns by the count of the unique labels in each. (Sum of train and test DataFrames.)
+    """ Encode categorical columns by the count of the unique labels in each. (Sum of train
+        and test DataFrames.)
     Args:
         df_train (pd.DataFrame): Training DataFrame.
+        df_val (pd.DataFrame): Validation DataFrame.
         df_test (pd.DataFrame): Test DataFrame.
-        target_col (str): Name of the target column in the training DataFrame.
         col_list (List[str]): List of column names to count encode.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: Training and test DataFrames with encoded columns.
+        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
+        DataFrames with encoded columns.
     """
 
     def check_duplicate_counts(mapping_dict: Dict) -> bool:
@@ -182,28 +185,26 @@ def count_encode(df_train: pd.DataFrame, df_test: pd.DataFrame, target_col: str,
         return len(values) != len(set(values))
 
     for col in col_list:
-        groupby_df = df_train[[target_col, col]].groupby([col]).count()
-        mapping_dict = groupby_df[target_col].to_dict()
-        groupby_df = df_test[[target_col, col]].groupby([col]).count()
+        mapping_dict_train = df_train[col].value_counts().to_dict()
+        mapping_dict_val = df_val[col].value_counts().to_dict()
+        mapping_dict_test = df_test[col].value_counts().to_dict()
 
-        for key, value in groupby_df[target_col].to_dict().items():
-            if key in mapping_dict:
-                mapping_dict[key] += value
-            else:
-                mapping_dict[key] = value
+        mapping_dict = dict(Counter(mapping_dict_train) +
+                            Counter(mapping_dict_val) +
+                            Counter(mapping_dict_test))
 
         if check_duplicate_counts(mapping_dict):
             print(f"Duplicate counts in column '{col}'!")
         df_train[col] = df_train[col].map(mapping_dict).astype(int)
         df_test[col] = df_test[col].map(mapping_dict).astype(int)
 
-    return (df_train, df_test)
+    return (df_train, df_val, df_test)
 
 
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 # reduce dataset size for testing
-dataframe, rest = train_test_split(dataframe, test_size=0.999)
+# dataframe, rest = train_test_split(dataframe, test_size=0.999)
 test = clean_data(pd.read_csv('test.csv'), drop=False)
 
 dataframe = add_intuitive_columns(dataframe)
