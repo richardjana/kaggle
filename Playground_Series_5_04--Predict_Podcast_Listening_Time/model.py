@@ -26,9 +26,6 @@ target_col = 'Listening_Time_minutes'
 loss_function = tf.keras.losses.MeanSquaredError()
 metric = 'root_mean_squared_error'
 
-# TODO: Apply to all DataFrames together, so the median values are consistent?
-# or rather drop from training and replace in test? (There, local or global?)
-
 
 def clean_data(pd_df: pd.DataFrame, drop: bool = True) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.
