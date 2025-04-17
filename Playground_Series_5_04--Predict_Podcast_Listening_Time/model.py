@@ -115,17 +115,22 @@ def generate_extra_columns(df_train: pd.DataFrame,
                       'Guest_Popularity_percentage', 'Number_of_Ads', 'Episode_Sentiment']
     pair_size = [2, 3, 4]
 
+    train_new_cols = {}
+    test_new_cols = {}
+
     for r in pair_size:
         for cols in list(combinations(encode_columns, r)):
             new_col_name = '_'.join(cols)
 
-            df_train[new_col_name] = df_train[list(cols)].astype(
-                str).agg('_'.join, axis=1)
-            df_train[new_col_name] = df_train[new_col_name].astype('category')
+            train_new_cols[new_col_name] = df_train[list(cols)].astype(
+                str).agg('_'.join, axis=1).astype('category')
+            test_new_cols[new_col_name] = df_test[list(cols)].astype(
+                str).agg('_'.join, axis=1).astype('category')
 
-            df_test[new_col_name] = df_test[list(cols)].astype(
-                str).agg('_'.join, axis=1)
-            df_test[new_col_name] = df_test[new_col_name].astype('category')
+    df_train = pd.concat([df_train, pd.DataFrame(
+        train_new_cols, index=df_train.index)], axis=1)
+    df_test = pd.concat([df_test, pd.DataFrame(
+        test_new_cols, index=df_test.index)], axis=1)
 
     return (df_train, df_test)
 
@@ -134,8 +139,6 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
                   target_col: str, col_list: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """ Target encode all columns listed in col_list, both in training and test DataFrames.
         (Using the mean of the target column from the training DataFrame.)
-        Doing it like this, the target values from the validation fold are used in the mean,
-        not just from the training folds - but that probably is ok.
     Args:
         df_train (pd.DataFrame): Training DataFrame.
         df_val (pd.DataFrame): Validation DataFrame.
@@ -146,14 +149,22 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
         DataFrames with encoded columns.
     """
+    train_enc = {}
+    val_enc = {}
+    test_enc = {}
+
     for col in col_list:
         groupby_df = df_train[[target_col, col]].groupby(
-            [col], observed=True).mean()
-        groupby_df.sort_values(by=target_col, inplace=True)
+            col, observed=True).mean()
         mapping_dict = groupby_df[target_col].to_dict()
-        df_train[col] = df_train[col].map(mapping_dict).astype(float)
-        df_val[col] = df_val[col].map(mapping_dict).astype(float)
-        df_test[col] = df_test[col].map(mapping_dict).astype(float)
+
+        train_enc[col] = df_train[col].map(mapping_dict).astype(float)
+        val_enc[col] = df_val[col].map(mapping_dict).astype(float)
+        test_enc[col] = df_test[col].map(mapping_dict).astype(float)
+
+    df_train[col_list] = pd.DataFrame(train_enc, index=df_train.index)
+    df_val[col_list] = pd.DataFrame(val_enc, index=df_val.index)
+    df_test[col_list] = pd.DataFrame(test_enc, index=df_test.index)
 
     return (df_train, df_val, df_test)
 
@@ -267,6 +278,11 @@ for train_index, val_index in kfold.split(dataframe):
         train_df, val_df, test, TARGET_COL, category_columns)
     # train_df_enc, val_df_enc, test_df_enc = count_encode(
     #   train_df, val_df, test, category_columns)
+
+    # defragment DataFrames
+    train_df_enc._consolidate_inplace()
+    val_df_enc._consolidate_inplace()
+    test_df_enc._consolidate_inplace()
 
     ### scale columns (not cyclical representations, not target column) ###
     scale_columns = [col for col in dataframe.keys() if col != TARGET_COL]
