@@ -289,9 +289,11 @@ for train_index, val_index in kfold.split(dataframe):
     train_df_enc, val_df_enc, test_df_enc = min_max_scaler(
         [train_df_enc, val_df_enc, test_df_enc], scale_columns)
 
-    y_train = train_df_enc.pop(TARGET_COL).to_numpy()
+    train_target_df = pd.DataFrame({TARGET_COL: train_df_enc.pop(TARGET_COL)})
+    y_train = train_target_df.to_numpy()
     X_train = train_df_enc.to_numpy()
-    y_val = val_df_enc.pop(TARGET_COL).to_numpy()
+    val_target_df = pd.DataFrame({TARGET_COL: val_df_enc.pop(TARGET_COL)})
+    y_val = val_target_df.to_numpy()
     X_val = val_df_enc.to_numpy()
 
     model = make_new_model(shape=X_train.shape[1])
@@ -302,10 +304,10 @@ for train_index, val_index in kfold.split(dataframe):
     model.save(f"rainfall_KFold_{cv_index}.keras")
     make_training_plot(history.history, f"training_KFold_{cv_index}.png")
 
-    train_df['PREDICTION'] = model.predict(X_train)
-    val_df['PREDICTION'] = model.predict(X_val)
+    train_target_df['PREDICTION'] = model.predict(X_train)
+    val_target_df['PREDICTION'] = model.predict(X_val)
 
-    make_diagonal_plot(train_df, val_df, TARGET_COL, RMSE,
+    make_diagonal_plot(train_target_df, val_target_df, TARGET_COL, RMSE,
                        'RMSE', f"error_diagonal_{cv_index}.png")
 
     make_prediction(model, test_df_enc, cv_index)
