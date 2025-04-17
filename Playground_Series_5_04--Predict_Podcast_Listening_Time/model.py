@@ -167,48 +167,6 @@ def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.Data
     return (df_train, df_val, df_test)
 
 
-def count_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame,
-                 col_list: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """ Encode categorical columns by the count of the unique labels in each. (Sum of train
-        and test DataFrames.)
-    Args:
-        df_train (pd.DataFrame): Training DataFrame.
-        df_val (pd.DataFrame): Validation DataFrame.
-        df_test (pd.DataFrame): Test DataFrame.
-        col_list (List[str]): List of column names to count encode.
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
-        DataFrames with encoded columns.
-    """
-
-    def check_duplicate_counts(mapping_dict: Dict) -> bool:
-        """ Check the mapping dictionary for collisions.
-        Args:
-            mapping_dict (Dict): Dictionary for the count encoding.
-        Returns:
-            bool: Are there collisions?
-        """
-        values = list(mapping_dict.values())
-        return len(values) != len(set(values))
-
-    for col in col_list:
-        mapping_dict_train = df_train[col].value_counts().to_dict()
-        mapping_dict_val = df_val[col].value_counts().to_dict()
-        mapping_dict_test = df_test[col].value_counts().to_dict()
-
-        mapping_dict = dict(Counter(mapping_dict_train) +
-                            Counter(mapping_dict_val) +
-                            Counter(mapping_dict_test))
-
-        if check_duplicate_counts(mapping_dict):
-            print(f"Duplicate counts in column '{col}'!")
-        df_train[col] = df_train[col].map(mapping_dict).astype(int)
-        df_val[col] = df_val[col].map(mapping_dict).astype(int)
-        df_test[col] = df_test[col].map(mapping_dict).astype(int)
-
-    return (df_train, df_val, df_test)
-
-
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 # reduce dataset size for testing
@@ -274,8 +232,6 @@ for train_index, val_index in kfold.split(dataframe):
         include=['category', 'object']).columns.tolist()
     train_df_enc, val_df_enc, test_df_enc = target_encode(
         train_df, val_df, test, TARGET_COL, category_columns)
-    # train_df_enc, val_df_enc, test_df_enc = count_encode(
-    #   train_df, val_df, test, category_columns)
 
     # defragment DataFrames
     train_df_enc._consolidate_inplace()
