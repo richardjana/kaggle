@@ -6,9 +6,7 @@ from collections import Counter
 import keras
 import numpy as np
 import pandas as pd
-# import sklearn
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 import tensorflow as tf
 
 sys.path.append('../')
