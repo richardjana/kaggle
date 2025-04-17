@@ -266,7 +266,7 @@ def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, cv_ind
 kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True)
 scores = []
 
-i = 0
+cv_index = 0
 for train_index, val_index in kfold.split(dataframe):
     train_df = dataframe.iloc[train_index].copy()
     val_df = dataframe.iloc[val_index].copy()
@@ -299,18 +299,18 @@ for train_index, val_index in kfold.split(dataframe):
                         validation_data=(X_val, y_val),
                         epochs=NUM_EPOCHS)
 
-    model.save(f"rainfall_KFold_{i}.keras")
-    make_training_plot(history.history, f"training_KFold_{i}.png")
+    model.save(f"rainfall_KFold_{cv_index}.keras")
+    make_training_plot(history.history, f"training_KFold_{cv_index}.png")
 
     train_df['PREDICTION'] = model.predict(X_train)
     val_df['PREDICTION'] = model.predict(X_val)
 
     make_diagonal_plot(train_df, val_df, TARGET_COL, RMSE,
-                       'RMSE', f"error_diagonal_{i}.png")
+                       'RMSE', f"error_diagonal_{cv_index}.png")
 
-    make_prediction(model, test_df_enc, i)
+    make_prediction(model, test_df_enc, cv_index)
 
-    i += 1
+    cv_index += 1
     scores.append(history.history[f"val_{METRIC}"][-1])
 
 print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
