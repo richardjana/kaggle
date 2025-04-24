@@ -265,7 +265,8 @@ for train_index, val_index in kfold.split(dataframe):
     model = make_new_model(shape=X_train.shape[1])
     history = model.fit(X_train, y_train,
                         validation_data=(X_val, y_val),
-                        epochs=NUM_EPOCHS)
+                        epochs=NUM_EPOCHS,
+                        batch_size=BATCH_SIZE)
 
     model.save(f"podcast_KFold_{cv_index}.keras")
     make_training_plot(history.history, f"training_KFold_{cv_index}.png")
