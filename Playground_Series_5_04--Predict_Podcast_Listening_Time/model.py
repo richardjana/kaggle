@@ -270,3 +270,12 @@ for train_index, val_index in kfold.split(dataframe):
     scores.append(history.history[f"val_{METRIC}"][-1])
 
 print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
+
+# ensemble prediction over CV folds
+prediction_dfs = [pd.read_csv(
+    f"predictions_KFold_{i}.csv") for i in range(NUM_CV_SPLITS)]
+pred_matrix = np.stack(
+    [df[TARGET_COL].values for df in prediction_dfs], axis=1)
+ensemble_prediction = prediction_dfs[0][['id']].copy()
+ensemble_prediction[TARGET_COL] = pred_matrix.mean(axis=1)
+ensemble_prediction.to_csv('predictions_KFold_ensemble.csv', index=False)
