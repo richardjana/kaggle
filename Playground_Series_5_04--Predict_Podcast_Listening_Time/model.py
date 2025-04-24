@@ -137,31 +137,47 @@ def generate_extra_columns(df_train: pd.DataFrame,
 
 
 def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame,
-                  target_col: str, col_list: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """ Target encode all columns listed in col_list, both in training and test DataFrames.
-        (Using the mean of the target column from the training DataFrame.)
+                  target_col: str, col_list: List[str], base_noise_std: float = 5.0,
+                  seed: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """ Target encode all columns listed in col_list, training, validation and test DataFrames.
+        (Using the mean of the target column from the training DataFrame.) Adds adaptive Gaussian
+        noise based on category frequency (lower freq - more noise).
     Args:
         df_train (pd.DataFrame): Training DataFrame.
         df_val (pd.DataFrame): Validation DataFrame.
         df_test (pd.DataFrame): Test DataFrame.
         target_col (str): Name of the target column to use for the encoding.
         col_list (List[str]): List of column names to target encode.
+        base_noise_std (float): Base standard deviation for noise.
+        seed (int): Random seed for reproducibility.
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
         DataFrames with encoded columns.
     """
+    np.random.seed(seed)
+
     train_enc = {}
     val_enc = {}
     test_enc = {}
 
     for col in col_list:
-        groupby_df = df_train[[target_col, col]].groupby(
-            col, observed=True).mean()
-        mapping_dict = groupby_df[target_col].to_dict()
+        stats = df_train[[col, target_col]].groupby(
+            col, observed=True).agg(['mean', 'count'])
+        stats.columns = ['mean', 'count']
+        mapping_mean = stats['mean'].to_dict()
+        mapping_count = stats['count'].to_dict()
 
-        train_enc[col] = df_train[col].map(mapping_dict).astype(float)
-        val_enc[col] = df_val[col].map(mapping_dict).astype(float)
-        test_enc[col] = df_test[col].map(mapping_dict).astype(float)
+        # training: add adaptive noise
+        train_enc_means = df_train[col].map(mapping_mean).astype(float)
+        train_enc_counts = df_train[col].map(mapping_count).astype(float)
+
+        noise_std = base_noise_std / np.sqrt(train_enc_counts.clip(lower=1))
+        noise = np.random.normal(loc=0.0, scale=noise_std)
+        train_enc[col] = train_enc_means + noise
+
+        # validation / test: no noise
+        val_enc[col] = df_val[col].map(mapping_mean).astype(float)
+        test_enc[col] = df_test[col].map(mapping_mean).astype(float)
 
     df_train[col_list] = pd.DataFrame(train_enc, index=df_train.index)
     df_val[col_list] = pd.DataFrame(val_enc, index=df_val.index)
