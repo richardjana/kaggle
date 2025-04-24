@@ -267,7 +267,7 @@ for train_index, val_index in kfold.split(dataframe):
                         validation_data=(X_val, y_val),
                         epochs=NUM_EPOCHS)
 
-    model.save(f"rainfall_KFold_{cv_index}.keras")
+    model.save(f"podcast_KFold_{cv_index}.keras")
     make_training_plot(history.history, f"training_KFold_{cv_index}.png")
 
     train_target_df['PREDICTION'] = model.predict(X_train)
