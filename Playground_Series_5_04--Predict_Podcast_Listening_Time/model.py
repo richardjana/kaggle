@@ -16,7 +16,8 @@ from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_p
 LAYER_SIZE = 64
 L2_REG = 0.01 / 10
 DROP_RATE = 0.25
-LEARNING_RATE = 0.00001
+LEARNING_RATE_INITIAL = 1e-3
+LEARNING_RATE_FINAL = 1e-6
 NUM_EPOCHS = 1000
 NUM_CV_SPLITS = 5
 TARGET_COL = 'Listening_Time_minutes'
@@ -178,6 +179,15 @@ test = add_intuitive_columns(test)
 
 dataframe, test = generate_extra_columns(dataframe, test)
 
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=LEARNING_RATE_INITIAL,
+    decay_steps=len(dataframe) // NUM_CV_SPLITS *
+    (NUM_CV_SPLITS-1) // BATCH_SIZE,
+    decay_rate=(LEARNING_RATE_FINAL /
+                LEARNING_RATE_INITIAL) ** (1 / (NUM_EPOCHS - 1)),
+    staircase=True
+)
+
 
 def make_new_model(shape: int) -> tf.keras.Model:
     """ Create a fresh model, with fresh weights and clean optimizer state.
@@ -200,7 +210,7 @@ def make_new_model(shape: int) -> tf.keras.Model:
         tf.keras.layers.Dense(1)
     ])
 
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
                   loss=LOSS_FUNCTION,
                   metrics=[METRIC])
 
