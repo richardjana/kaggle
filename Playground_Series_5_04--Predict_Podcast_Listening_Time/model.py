@@ -55,9 +55,10 @@ def clean_data(pd_df: pd.DataFrame, drop: bool = True) -> pd.DataFrame:
             pd_df[col] = pd_df[col].fillna(pd_df[col].median())
 
     # make 'Episode_Title' integer column (all follow 'Episode_<number> pattern) ...
-    # pd_df['Episode_Title'] = pd_df['Episode_Title'].map(lambda et: int(et.split()[1]))
+    pd_df['Episode_Title'] = pd_df['Episode_Title'].map(
+        lambda et: int(et.split()[1]))
     # ... or drop it altogether?
-    pd_df.drop('Episode_Title', axis=1, inplace=True)
+    # pd_df.drop('Episode_Title', axis=1, inplace=True)
 
     if drop is True:  # drop / replace outliers / implausible data points
         pd_df.drop(pd_df[pd_df['Host_Popularity_percentage']
