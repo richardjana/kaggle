@@ -258,7 +258,8 @@ for train_index, val_index in kfold.split(dataframe):
     make_prediction(model, test_df, cv_index)
 
     cv_index += 1
-    scores.append(history.history[f"val_{METRIC}"][-1])
+    scores.append(RMSE(val_target_df[TARGET_COL].to_numpy(),
+                       val_target_df['PREDICTION'].to_numpy()))
 
 print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
 
