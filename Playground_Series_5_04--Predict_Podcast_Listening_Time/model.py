@@ -7,6 +7,7 @@ import keras
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
+from sklearn.preprocessing import TargetEncoder
 import tensorflow as tf
 
 sys.path.append('../')
@@ -111,9 +112,7 @@ def generate_extra_columns(df_train: pd.DataFrame,
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test DataFrames with added columns.
     """
     # column pairs, inspired by greysky
-    encode_columns = ['Podcast_Name', 'Episode_Length_minutes', 'Genre',
-                      'Host_Popularity_percentage', 'Publication_Day', 'Publication_Time',
-                      'Guest_Popularity_percentage', 'Number_of_Ads', 'Episode_Sentiment']
+    encode_columns = [col for col in df_train.keys() if col != TARGET_COL]
     pair_size = [2, 3, 4]
 
     train_new_cols = {}
@@ -136,66 +135,16 @@ def generate_extra_columns(df_train: pd.DataFrame,
     return (df_train, df_test)
 
 
-def target_encode(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame,
-                  target_col: str, col_list: List[str], base_noise_std: float = 5.0,
-                  seed: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """ Target encode all columns listed in col_list, training, validation and test DataFrames.
-        (Using the mean of the target column from the training DataFrame.) Adds adaptive Gaussian
-        noise based on category frequency (lower freq - more noise).
-    Args:
-        df_train (pd.DataFrame): Training DataFrame.
-        df_val (pd.DataFrame): Validation DataFrame.
-        df_test (pd.DataFrame): Test DataFrame.
-        target_col (str): Name of the target column to use for the encoding.
-        col_list (List[str]): List of column names to target encode.
-        base_noise_std (float): Base standard deviation for noise.
-        seed (int): Random seed for reproducibility.
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Training, validation and test
-        DataFrames with encoded columns.
-    """
-    np.random.seed(seed)
-
-    train_enc = {}
-    val_enc = {}
-    test_enc = {}
-
-    for col in col_list:
-        stats = df_train[[col, target_col]].groupby(
-            col, observed=True).agg(['mean', 'count'])
-        stats.columns = ['mean', 'count']
-        mapping_mean = stats['mean'].to_dict()
-        mapping_count = stats['count'].to_dict()
-
-        # training: add adaptive noise
-        train_enc_means = df_train[col].map(mapping_mean).astype(float)
-        train_enc_counts = df_train[col].map(mapping_count).astype(float)
-
-        noise_std = base_noise_std / np.sqrt(train_enc_counts.clip(lower=1))
-        noise = np.random.normal(loc=0.0, scale=noise_std)
-        train_enc[col] = train_enc_means + noise
-
-        # validation / test: no noise
-        val_enc[col] = df_val[col].map(mapping_mean).astype(float)
-        test_enc[col] = df_test[col].map(mapping_mean).astype(float)
-
-    df_train[col_list] = pd.DataFrame(train_enc, index=df_train.index)
-    df_val[col_list] = pd.DataFrame(val_enc, index=df_val.index)
-    df_test[col_list] = pd.DataFrame(test_enc, index=df_test.index)
-
-    return (df_train, df_val, df_test)
-
-
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 # reduce dataset size for testing
 # dataframe, rest = train_test_split(dataframe, test_size=0.999)
 test = clean_data(pd.read_csv('test.csv'), drop=False)
 
+dataframe, test = generate_extra_columns(dataframe, test)
+
 dataframe = add_intuitive_columns(dataframe)
 test = add_intuitive_columns(test)
-
-dataframe, test = generate_extra_columns(dataframe, test)
 
 lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
     initial_learning_rate=LEARNING_RATE_INITIAL,
@@ -260,29 +209,35 @@ cv_index = 0
 for train_index, val_index in kfold.split(dataframe):
     train_df = dataframe.iloc[train_index].copy()
     val_df = dataframe.iloc[val_index].copy()
+    test_df = test.copy()
 
     # encode category columns for the fold
-    category_columns = dataframe.select_dtypes(
-        include=['category', 'object']).columns.tolist()
-    train_df_enc, val_df_enc, test_df_enc = target_encode(
-        train_df, val_df, test, TARGET_COL, category_columns)
+    encoded_columns = train_df.select_dtypes(
+        include=['object', 'category']).columns.tolist()
+    encoder = TargetEncoder(random_state=42)
+
+    train_df[encoded_columns] = encoder.fit_transform(
+        train_df[encoded_columns], train_df[TARGET_COL])
+
+    val_df[encoded_columns] = encoder.transform(val_df[encoded_columns])
+    test_df[encoded_columns] = encoder.transform(test_df[encoded_columns])
 
     # defragment DataFrames
-    train_df_enc._consolidate_inplace()
-    val_df_enc._consolidate_inplace()
-    test_df_enc._consolidate_inplace()
+    train_df._consolidate_inplace()
+    val_df._consolidate_inplace()
+    test_df._consolidate_inplace()
 
-    ### scale columns (not cyclical representations, not target column) ###
-    scale_columns = [col for col in dataframe.keys() if col != TARGET_COL]
-    train_df_enc, val_df_enc, test_df_enc = min_max_scaler(
-        [train_df_enc, val_df_enc, test_df_enc], scale_columns)
+    # scale columns
+    scale_columns = [col for col in train_df.keys() if col != TARGET_COL]
+    train_df, val_df, test_df = min_max_scaler(
+        [train_df, val_df, test_df], scale_columns)
 
-    train_target_df = pd.DataFrame({TARGET_COL: train_df_enc.pop(TARGET_COL)})
+    train_target_df = pd.DataFrame({TARGET_COL: train_df.pop(TARGET_COL)})
     y_train = train_target_df.to_numpy()
-    X_train = train_df_enc.to_numpy()
-    val_target_df = pd.DataFrame({TARGET_COL: val_df_enc.pop(TARGET_COL)})
+    X_train = train_df.to_numpy()
+    val_target_df = pd.DataFrame({TARGET_COL: val_df.pop(TARGET_COL)})
     y_val = val_target_df.to_numpy()
-    X_val = val_df_enc.to_numpy()
+    X_val = val_df.to_numpy()
 
     model = make_new_model(shape=X_train.shape[1])
     history = model.fit(X_train, y_train,
@@ -300,7 +255,7 @@ for train_index, val_index in kfold.split(dataframe):
     make_diagonal_plot(train_target_df, val_target_df, TARGET_COL, RMSE,
                        'RMSE', f"error_diagonal_{cv_index}.png")
 
-    make_prediction(model, test_df_enc, cv_index)
+    make_prediction(model, test_df, cv_index)
 
     cv_index += 1
     scores.append(history.history[f"val_{METRIC}"][-1])
