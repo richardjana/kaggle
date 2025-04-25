@@ -247,6 +247,12 @@ def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame, cv_ind
         'id', TARGET_COL], index=False)
 
 
+early_stop = tf.keras.callbacks.EarlyStopping(
+    monitor='val_loss',
+    patience=round(NUM_EPOCHS**(1/3)),
+    restore_best_weights=True
+)
+
 kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True)
 scores = []
 
@@ -282,7 +288,8 @@ for train_index, val_index in kfold.split(dataframe):
     history = model.fit(X_train, y_train,
                         validation_data=(X_val, y_val),
                         epochs=NUM_EPOCHS,
-                        batch_size=BATCH_SIZE)
+                        batch_size=BATCH_SIZE,
+                        callbacks=[early_stop])
 
     model.save(f"podcast_KFold_{cv_index}.keras")
     make_training_plot(history.history, f"training_KFold_{cv_index}.png")
