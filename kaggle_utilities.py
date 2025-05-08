@@ -5,12 +5,10 @@ import matplotlib
 import matplotlib.patheffects as PathEffects
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
 import seaborn as sns
 import sklearn
 import tensorflow as tf
-from tensorflow import Tensor
 
 matplotlib.use('Agg')
 
@@ -158,7 +156,7 @@ def min_max_scaler(df_list: List[pd.DataFrame], col_names: List[str]) -> List[pd
     return df_list
 
 
-def RMSE(arr_1: NDArray, arr_2: NDArray) -> float:
+def RMSE(arr_1: np.ndarray, arr_2: np.ndarray) -> float:
     """ Calculate the Root Mean Squared Error (RMSE) between two arrays.
     Args:
         arr_1 (NDArray): First array.
@@ -169,7 +167,7 @@ def RMSE(arr_1: NDArray, arr_2: NDArray) -> float:
     return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
 
 
-def rmsle_metric(y_true: Tensor, y_pred: Tensor) -> Tensor:
+def rmsle_metric(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     """ Compute the Root Mean Squared Logarithmic Error (RMSLE) between true and predicted values.
     Args:
         y_true (Tensor): Ground truth values (non-negative).
