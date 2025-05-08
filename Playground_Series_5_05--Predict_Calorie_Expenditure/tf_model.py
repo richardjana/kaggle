@@ -167,7 +167,7 @@ def make_new_model(shape: int) -> tf.keras.Model:
 
 
 def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame,
-                    skl_pt: PowerTransformer, cv_index: Union[int, str]) -> None:
+                    skl_pt: PowerTransformer, cv_index: int | str) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
         model (tf.keras.Model): Model used for the prediction.
@@ -189,7 +189,7 @@ early_stop = tf.keras.callbacks.EarlyStopping(
 
 
 def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
-                test_df: pd.DataFrame, cv_index: Union[int, str]) -> float:
+                test_df: pd.DataFrame, cv_index: int | str) -> float:
     """ min-max-scale columns, train the model and make predictions and plots.
     Args:
         train_df (pd.DataFrame): _description_
