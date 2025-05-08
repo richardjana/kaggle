@@ -1,6 +1,6 @@
 from itertools import combinations
 import sys
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Literal, Tuple, Union
 
 import keras
 import numpy as np
@@ -31,37 +31,34 @@ METRIC = rmsle_metric
 
 from sklearn.base import BaseEstimator, TransformerMixin
 class PositivePowerTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, method):
-        self.transformer = PowerTransformer(method=method)
-        self.shift_value = 100
+    """ Modify the sklearn PowerTransformer by shifting the transformed values. This is done in
+        order to obtain exclusively positive values for the RMSLE metric.
+    """
+    def __init__(self, method: Literal['yeo-johnson', 'box-cox'] = 'yeo-johnson') -> None:
+        self.transformer: PowerTransformer = PowerTransformer(method=method)
+        self.shift_value: float = 0.0
 
-    def fit(self, X, y=None):
-        # Fit the PowerTransformer to the data
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> 'PositivePowerTransformer':
+        """ Fit the transformer to the data."""
         self.transformer.fit(X)
 
-        # Transform the data to check if shifting is needed
-        X_transformed = self.transformer.transform(X)
+        X_transformed: np.ndarray = self.transformer.transform(X)
 
-        # Check if any values are negative and compute the shift
-        X_min = X_transformed.min()
+        X_min: float = X_transformed.min()
         if X_min < 0:
             self.shift_value = abs(X_min)
         else:
-            self.shift_value = 0  # No need for shift if all values are positive
+            self.shift_value = 0
 
         return self
 
-    def transform(self, X):
-        # Apply the power transformation
-        X_transformed = self.transformer.transform(X)
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """ Transform the data, ensuring no negative values."""
+        return self.transformer.transform(X) + self.shift_value
 
-        # Shift the values to ensure no negative values
-        return X_transformed + self.shift_value
-
-    def inverse_transform(self, X):
-        # Inverse transform, subtracting the shift
-        X_inv = X - self.shift_value
-        return self.transformer.inverse_transform(X_inv)
+    def inverse_transform(self, X: np.ndarray) -> np.ndarray:
+        """ Inverse transform the data."""
+        return self.transformer.inverse_transform(X - self.shift_value)
 
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.
