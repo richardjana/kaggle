@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+# Disable 'no-member' for TensorFlow (uses dynamic attributes like tf.keras)
+disable=no-member,missing-module-docstring
+[FORMAT]
+max-line-length = 100
