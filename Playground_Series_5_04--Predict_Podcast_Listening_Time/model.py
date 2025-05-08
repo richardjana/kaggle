@@ -17,7 +17,7 @@ from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_p
 LAYER_SIZE = 64
 L2_REG = 0.01 / 10
 DROP_RATE = 0.25
-LEARNING_RATE_INITIAL = 1e-3
+LEARNING_RATE_INITIAL = 1e-4
 LEARNING_RATE_FINAL = 1e-6
 NUM_EPOCHS = 1000
 BATCH_SIZE = 128
@@ -146,15 +146,6 @@ dataframe, test = generate_extra_columns(dataframe, test)
 dataframe = add_intuitive_columns(dataframe)
 test = add_intuitive_columns(test)
 
-lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=LEARNING_RATE_INITIAL,
-    decay_steps=len(dataframe) // NUM_CV_SPLITS *
-    (NUM_CV_SPLITS-1) // BATCH_SIZE,
-    decay_rate=(LEARNING_RATE_FINAL /
-                LEARNING_RATE_INITIAL) ** (1 / (NUM_EPOCHS - 1)),
-    staircase=True
-)
-
 
 def make_new_model(shape: int) -> tf.keras.Model:
     """ Create a fresh model, with fresh weights and clean optimizer state.
@@ -202,16 +193,20 @@ early_stop = tf.keras.callbacks.EarlyStopping(
     restore_best_weights=True
 )
 
-kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True)
-scores = []
 
-cv_index = 0
-for train_index, val_index in kfold.split(dataframe):
-    train_df = dataframe.iloc[train_index].copy()
-    val_df = dataframe.iloc[val_index].copy()
-    test_df = test.copy()
+def train_model(train_df, val_df, test_df, cv_index):
+    """ Target encode category columns, min-max-scale, train the model and make predictions and plots.
 
-    # encode category columns for the fold
+    Args:
+        train_df (_type_): _description_
+        val_df (_type_): _description_
+        test_df (_type_): _description_
+        cv_index (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # encode category columns
     encoded_columns = train_df.select_dtypes(
         include=['object', 'category']).columns.tolist()
     encoder = TargetEncoder(random_state=42)
@@ -257,17 +252,58 @@ for train_index, val_index in kfold.split(dataframe):
 
     make_prediction(model, test_df, cv_index)
 
-    cv_index += 1
-    scores.append(RMSE(val_target_df[TARGET_COL].to_numpy(),
-                       val_target_df['PREDICTION'].to_numpy()))
+    score = RMSE(val_target_df[TARGET_COL].to_numpy(),
+                 val_target_df['PREDICTION'].to_numpy())
 
-print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
+    return score
 
-# ensemble prediction over CV folds
-prediction_dfs = [pd.read_csv(
-    f"predictions_KFold_{i}.csv") for i in range(NUM_CV_SPLITS)]
-pred_matrix = np.stack(
-    [df[TARGET_COL].values for df in prediction_dfs], axis=1)
-ensemble_prediction = prediction_dfs[0][['id']].copy()
-ensemble_prediction[TARGET_COL] = pred_matrix.mean(axis=1)
-ensemble_prediction.to_csv('predictions_KFold_ensemble.csv', index=False)
+
+if NUM_CV_SPLITS > 1:  # do cross-validation
+    kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True)
+    scores = []
+    cv_index = 0
+
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=LEARNING_RATE_INITIAL,
+        decay_steps=len(dataframe) // NUM_CV_SPLITS *
+        (NUM_CV_SPLITS-1) // BATCH_SIZE,
+        decay_rate=(LEARNING_RATE_FINAL /
+                    LEARNING_RATE_INITIAL) ** (1 / (NUM_EPOCHS - 1)),
+        staircase=True
+    )
+
+    for train_index, val_index in kfold.split(dataframe):
+        train_df = dataframe.iloc[train_index].copy()
+        val_df = dataframe.iloc[val_index].copy()
+        test_df = test.copy()
+
+        cv_index += 1
+        cv_split_score = train_model(train_df, val_df, test_df, cv_index)
+        scores.append(cv_split_score)
+
+    print(f'Average cross-validation RMSE: {np.mean(scores):.4f} ({scores})')
+
+    # ensemble prediction over CV folds
+    prediction_dfs = [pd.read_csv(
+        f"predictions_KFold_{i}.csv") for i in range(NUM_CV_SPLITS)]
+    pred_matrix = np.stack(
+        [df[TARGET_COL].values for df in prediction_dfs], axis=1)
+    ensemble_prediction = prediction_dfs[0][['id']].copy()
+    ensemble_prediction[TARGET_COL] = pred_matrix.mean(axis=1)
+    ensemble_prediction.to_csv('predictions_KFold_ensemble.csv', index=False)
+
+else:  # train on the full data set for final prediction
+    cv_index = 'full'  # for plot names
+    train_df, val_df = train_test_split(dataframe, test_size=0.1)
+
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=LEARNING_RATE_INITIAL,
+        decay_steps=len(dataframe) // BATCH_SIZE,
+        decay_rate=(LEARNING_RATE_FINAL /
+                    LEARNING_RATE_INITIAL) ** (1 / (NUM_EPOCHS - 1)),
+        staircase=True
+    )
+
+    score = train_model(train_df, val_df, test, cv_index)
+
+    print(f"Final RMSE score = {score}")
