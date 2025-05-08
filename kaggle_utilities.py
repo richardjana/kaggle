@@ -9,8 +9,11 @@ from numpy.typing import NDArray
 import pandas as pd
 import seaborn as sns
 import sklearn
+import tensorflow as tf
+from tensorflow import Tensor
 
 matplotlib.use('Agg')
+
 
 def make_category_error_plot(pd_df: pd.DataFrame, target_col: str,
                              fname: str, n_categories: int) -> None:
@@ -31,11 +34,13 @@ def make_category_error_plot(pd_df: pd.DataFrame, target_col: str,
     h_map /= np.sum(h_map)
 
     cmap = sns.color_palette('rocket', as_cmap=True)
-    chart = sns.heatmap(h_map, cmap=cmap, square=True, linewidths=.5, cbar_kws={'shrink': .5})
+    chart = sns.heatmap(h_map, cmap=cmap, square=True,
+                        linewidths=.5, cbar_kws={'shrink': .5})
 
     for y in range(n_categories):
         for x in range(n_categories):
-            txt = plt.text(x + 0.5, y + 0.5, f"{h_map[y, x]:.3f}", ha='center', va='center')
+            txt = plt.text(x + 0.5, y + 0.5,
+                           f"{h_map[y, x]:.3f}", ha='center', va='center')
             txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w'),
                                   PathEffects.withStroke(linewidth=1, foreground='k')])
 
@@ -45,6 +50,7 @@ def make_category_error_plot(pd_df: pd.DataFrame, target_col: str,
 
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
+
 
 def make_diagonal_plot(train: pd.DataFrame,
                        val: pd.DataFrame,
@@ -62,7 +68,8 @@ def make_diagonal_plot(train: pd.DataFrame,
         metric_name (str): Name of the evaluation metric.
         fname (str): File name for the plot image.
     """
-    chart = sns.scatterplot(data=train, x=target_col, y='PREDICTION', alpha=0.25)
+    chart = sns.scatterplot(data=train, x=target_col,
+                            y='PREDICTION', alpha=0.25)
     sns.scatterplot(data=val, x=target_col, y='PREDICTION', alpha=0.25)
 
     min_val = min(chart.get_xlim()[0], chart.get_ylim()[0])
@@ -84,6 +91,7 @@ def make_diagonal_plot(train: pd.DataFrame,
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
+
 def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
     """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
     Args:
@@ -93,7 +101,8 @@ def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
     metric = list(history.keys())[0]
 
     _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
-    ax.plot(np.arange(len(history[metric]))+1, history[metric], 'r', label=f"training {metric}")
+    ax.plot(np.arange(len(history[metric]))+1,
+            history[metric], 'r', label=f"training {metric}")
     ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric}"],
             'g', label=f"validation {metric}")
     ax.set_xlabel('epoch')
@@ -105,6 +114,7 @@ def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
     plt.savefig(f"{fname[:-4]}_LOG.png", bbox_inches='tight')
 
     plt.close()
+
 
 def make_ROC_plot(pd_df: pd.DataFrame, target_col: str, fname: str) -> None:
     """ Make Receiver Operating Characteristic (ROC) plot with Area Under the Curve (AUC) value.
@@ -126,6 +136,7 @@ def make_ROC_plot(pd_df: pd.DataFrame, target_col: str, fname: str) -> None:
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
+
 def min_max_scaler(df_list: List[pd.DataFrame], col_names: List[str]) -> List[pd.DataFrame]:
     """ Scale a set of columns from a list of pandas DataFrames to the [0, 1] range.
     Args:
@@ -146,6 +157,7 @@ def min_max_scaler(df_list: List[pd.DataFrame], col_names: List[str]) -> List[pd
 
     return df_list
 
+
 def RMSE(arr_1: NDArray, arr_2: NDArray) -> float:
     """ Calculate the Root Mean Squared Error (RMSE) between two arrays.
     Args:
@@ -155,3 +167,35 @@ def RMSE(arr_1: NDArray, arr_2: NDArray) -> float:
         float: The RMSE.
     """
     return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
+
+
+def rmsle_metric(y_true: Tensor, y_pred: Tensor) -> Tensor:
+    """ Compute the Root Mean Squared Logarithmic Error (RMSLE) between true and predicted values.
+    Args:
+        y_true (Tensor): Ground truth values (non-negative).
+        y_pred (Tensor): Predicted values (non-negative).
+    Returns:
+        Tensor: A scalar tensor containing the RMSLE.
+    """
+    # Clip values to avoid log(0); assume values must be >= 0
+    y_true = tf.clip_by_value(y_true, 0.0, tf.float32.max)
+    y_pred = tf.clip_by_value(y_pred, 0.0, tf.float32.max)
+
+    return tf.sqrt(tf.reduce_mean(tf.square(tf.math.log1p(y_pred) - tf.math.log1p(y_true))))
+
+
+def rmsle(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """ Compute the Root Mean Squared Logarithmic Error (RMSLE) between true and predicted values.
+    Args:
+        y_true (np.ndarray): Ground truth values (non-negative).
+        y_pred (np.ndarray): Predicted values (non-negative).
+    Returns:
+        float: RMSLE score.
+    """
+    y_true = np.maximum(y_true, 0)
+    y_pred = np.maximum(y_pred, 0)
+
+    log_true = np.log1p(y_true)
+    log_pred = np.log1p(y_pred)
+
+    return np.sqrt(np.mean((log_pred - log_true) ** 2))
