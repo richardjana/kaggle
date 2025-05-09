@@ -21,7 +21,7 @@ LEARNING_RATE_INITIAL = 1e-4
 LEARNING_RATE_FINAL = 1e-6
 NUM_EPOCHS = 500
 BATCH_SIZE = 128
-NUM_CV_SPLITS = 5
+NUM_CV_SPLITS = 1
 TARGET_COL = 'Calories'
 
 LOSS_FUNCTION = tf.keras.losses.MeanSquaredLogarithmicError()
@@ -128,7 +128,7 @@ def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
 ##### load data #####
 dataframe = clean_data(pd.read_csv('train.csv'))
 # reduce dataset size for testing
-dataframe, rest = train_test_split(dataframe, test_size=0.95)
+#dataframe, rest = train_test_split(dataframe, test_size=0.95)
 test = clean_data(pd.read_csv('test.csv'))
 
 dataframe = generate_extra_columns(dataframe)
