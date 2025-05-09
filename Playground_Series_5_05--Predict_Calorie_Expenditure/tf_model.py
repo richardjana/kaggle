@@ -97,6 +97,9 @@ def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
 
     pd_df['Heart_rate_Zone'] = pd.cut(pd_df['Heart_Rate'], bins=[0, 90, 110, 200],
                                       labels=[0, 1, 2]).astype(int)
+    pd_df['Heart_Rate_Zone_2'] = pd.cut(pd_df['Heart_Rate']/(220-pd_df['Age'])*100,
+                                        bins=[0, 50, 65, 80, 85, 92, 100],
+                                        labels=[0, 1, 2, 3, 4, 5]).astype(int)
 
     pd_df['Age_Group'] = pd.cut(pd_df['Age'], bins=[0, 20, 35, 50, 100],
                                 labels=[0, 1, 2, 3]).astype(int)
