@@ -123,6 +123,10 @@ def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
             col_name = '*'.join(cols)
             new_cols[col_name] = pd_df[list(cols)].prod(axis=1)
 
+    for cols in combinations(combine_cols, 2):
+        col_name = '/'.join(cols)
+        new_cols[col_name] = pd_df[cols[0]] / pd_df[cols[1]]
+
     pd_df = pd.concat([pd_df, pd.DataFrame(new_cols, index=pd_df.index)], axis=1)
 
     return pd_df
