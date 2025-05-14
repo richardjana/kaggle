@@ -55,7 +55,8 @@ def make_diagonal_plot(train: pd.DataFrame,
                        target_col: str,
                        metric: Callable[[List[float], List[float]], float],
                        metric_name: str,
-                       fname: str) -> None:
+                       fname: str,
+                       precision: int = 2) -> None:
     """ Make a diagonal error plot, showing both training and validation data points.
     Args:
         train (pd.DataFrame): Training data.
@@ -65,6 +66,7 @@ def make_diagonal_plot(train: pd.DataFrame,
             metric.
         metric_name (str): Name of the evaluation metric.
         fname (str): File name for the plot image.
+        precision (int): Number of decimals to print for the metric. Defaults to 2.
     """
     chart = sns.scatterplot(data=train, x=target_col,
                             y='PREDICTION', alpha=0.25)
@@ -81,28 +83,29 @@ def make_diagonal_plot(train: pd.DataFrame,
     chart.set_ylabel(f"Predicted {target_col}")
 
     metric_value = metric(train[target_col], train['PREDICTION'])
-    labels = [f"training ({metric_value:.2f})"]
+    labels = [f"training ({metric_value:.{precision}f})"]
     metric_value = metric(val[target_col], val['PREDICTION'])
-    labels += [f"validation ({metric_value:.2f})"]
+    labels += [f"validation ({metric_value:.{precision}f})"]
     plt.legend(labels=labels, title=f"dataset ({metric_name}):", loc='best')
 
     plt.savefig(fname, bbox_inches='tight')
     plt.close()
 
 
-def make_training_plot(history: Dict[str, List[int]], fname: str) -> None:
+def make_training_plot(history: Dict[str, List[int]], fname: str, precision: int = 2) -> None:
     """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
     Args:
         history (Dict[str, List[int]]): History from model.fit.
         fname (str): File name for the plot image.
+        precision (int): Number of decimals to print for the metric. Defaults to 2.
     """
     metric = list(history.keys())[0]
 
     _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
-    ax.plot(np.arange(len(history[metric]))+1,
-            history[metric], 'r', label=f"training {metric}")
-    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric}"],
-            'g', label=f"validation {metric}")
+    ax.plot(np.arange(len(history[metric]))+1, history[metric], 'r',
+            label=f"training {metric} ({min(history[metric]):.{precision}f})")
+    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric} ()"], 'g',
+            label=f"validation {metric} ({min(history[f'val_{metric} ()']):.{precision}f})")
     ax.set_xlabel('epoch')
     ax.set_ylabel(metric)
     plt.legend(loc='best')
