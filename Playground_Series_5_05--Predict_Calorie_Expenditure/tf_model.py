@@ -104,6 +104,12 @@ def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
     pd_df['Age_Group'] = pd.cut(pd_df['Age'], bins=[0, 20, 35, 50, 100],
                                 labels=[0, 1, 2, 3]).astype(int)
 
+    cb_male = (0.6309*pd_df['Heart_Rate'] + 0.1988*pd_df['Weight']
+               + 0.2017*pd_df['Age'] - 55.0969) / 4.184 * pd_df['Duration']
+    cb_female = (0.4472*pd_df['Heart_Rate'] - 0.1263*pd_df['Weight']
+                 + 0.0740*pd_df['Age'] - 20.4022) / 4.184 * pd_df['Duration']
+    pd_df['Calories_Burned'] = np.where(pd_df['Sex'] == 'male', cb_male, cb_female)
+
     return pd_df
 
 
