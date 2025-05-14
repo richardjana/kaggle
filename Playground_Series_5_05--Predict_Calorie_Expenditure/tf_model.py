@@ -233,13 +233,13 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
                         batch_size=BATCH_SIZE,
                         callbacks=[early_stop])
 
-    make_training_plot(history.history, f"training_KFold_{cv_index}.png")
+    make_training_plot(history.history, f"training_KFold_{cv_index}.png", precision=5)
 
     train_target_df['PREDICTION'] = model.predict(X_train)
     val_target_df['PREDICTION'] = model.predict(X_val)
 
     make_diagonal_plot(train_target_df, val_target_df, TARGET_COL, rmsle,
-                       'RMSLE', f"error_diagonal_{cv_index}.png")
+                       'RMSLE', f"error_diagonal_{cv_index}.png", precision=5)
 
     make_prediction(model, test_df, skl_pt, cv_index)
 
