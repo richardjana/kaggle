@@ -110,6 +110,9 @@ def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
                  + 0.0740*pd_df['Age'] - 20.4022) / 4.184 * pd_df['Duration']
     pd_df['Calories_Burned'] = np.where(pd_df['Sex'] == 'male', cb_male, cb_female)
 
+    for col in ['Height', 'Weight', 'Heart_Rate']:
+        pd_df[f"{col}_zscore"] = pd_df.groupby('Sex')[col].transform(zscore)
+
     return pd_df
 
 
