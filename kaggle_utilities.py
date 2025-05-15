@@ -104,8 +104,8 @@ def make_training_plot(history: Dict[str, List[int]], fname: str, precision: int
     _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
     ax.plot(np.arange(len(history[metric]))+1, history[metric], 'r',
             label=f"training {metric} ({min(history[metric]):.{precision}f})")
-    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric} ()"], 'g',
-            label=f"validation {metric} ({min(history[f'val_{metric} ()']):.{precision}f})")
+    ax.plot(np.arange(len(history[f"val_{metric}"]))+1, history[f"val_{metric}"], 'g',
+            label=f"validation {metric} ({min(history[f'val_{metric}']):.{precision}f})")
     ax.set_xlabel('epoch')
     ax.set_ylabel(metric)
     plt.legend(loc='best')
