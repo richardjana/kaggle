@@ -6,8 +6,9 @@ import keras
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import PowerTransformer
+from sklearn.preprocessing import FunctionTransformer, PowerTransformer
 import tensorflow as tf
 
 sys.path.append('../')
@@ -29,7 +30,7 @@ METRIC = rmsle_metric
 #LOSS_FUNCTION = tf.keras.losses.MeanSquaredError()
 #METRIC = 'root_mean_squared_error'
 
-from sklearn.base import BaseEstimator, TransformerMixin
+
 class PositivePowerTransformer(BaseEstimator, TransformerMixin):
     """ Modify the sklearn PowerTransformer by shifting the transformed values. This is done in
         order to obtain exclusively positive values for the RMSLE metric.
@@ -60,6 +61,7 @@ class PositivePowerTransformer(BaseEstimator, TransformerMixin):
         """ Inverse transform the data."""
         return self.transformer.inverse_transform(X - self.shift_value)
 
+
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.
     Args:
@@ -75,7 +77,6 @@ def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
 
     return pd_df
 
-# probably most important: Duration >> Body_Temp > Heart_Rate >> rest
 
 def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Add columns to DataFrame, possibly inspired by other peoples solutions.
@@ -183,17 +184,19 @@ def make_new_model(shape: int) -> tf.keras.Model:
 
 
 def make_prediction(model: tf.keras.Model, test_df_encoded: pd.DataFrame,
-                    skl_pt: PowerTransformer, cv_index: int | str) -> None:
+                    skl_transformer: FunctionTransformer | PowerTransformer,
+                    cv_index: int | str) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
         model (tf.keras.Model): Model used for the prediction.
         test_df_encoded (pd.DataFrame): DataFrame with the test data, pre-processed.
-        skl_pt (PowerTransformer): _description_
-        cv_index (Union[int, str]): Index of the cross-validation fold, used in the file name.
+        skl_transformer (FunctionTransformer | PowerTransformer): Transformer used to transform
+            back to the original target space.
+        cv_index (int | str): Index of the cross-validation fold, used in the file name.
     """
     submit_df = pd.read_csv('sample_submission.csv')
     submit_df[TARGET_COL] = model.predict(test_df_encoded.to_numpy())
-    #submit_df[TARGET_COL] = skl_pt.inverse_transform(submit_df[[TARGET_COL]])
+    submit_df[TARGET_COL] = skl_transformer.inverse_transform(submit_df[[TARGET_COL]])
     submit_df.to_csv(f"predictions_KFold_{cv_index}.csv", columns=['id', TARGET_COL], index=False)
 
 
@@ -224,9 +227,11 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
     scale_columns = [col for col in train_df.keys() if col != TARGET_COL]
     train_df, val_df, test_df = min_max_scaler([train_df, val_df, test_df], scale_columns)
 
-    skl_pt = PositivePowerTransformer(method='yeo-johnson')
-    #train_df[TARGET_COL] = skl_pt.fit_transform(train_df[[TARGET_COL]])
-    #val_df[TARGET_COL] = skl_pt.transform(val_df[[TARGET_COL]])
+    #skl_transformer = PositivePowerTransformer(method='yeo-johnson')
+    skl_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
+    #train_df[TARGET_COL] = skl_transformer.fit_transform(train_df[[TARGET_COL]])
+    train_df[TARGET_COL] = skl_transformer.transform(train_df[[TARGET_COL]])
+    val_df[TARGET_COL] = skl_transformer.transform(val_df[[TARGET_COL]])
 
     train_target_df = pd.DataFrame({TARGET_COL: train_df.pop(TARGET_COL)})
     y_train = train_target_df.to_numpy()
@@ -250,7 +255,7 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
     make_diagonal_plot(train_target_df, val_target_df, TARGET_COL, rmsle,
                        'RMSLE', f"error_diagonal_{cv_index}.png", precision=5)
 
-    make_prediction(model, test_df, skl_pt, cv_index)
+    make_prediction(model, test_df, skl_transformer, cv_index)
 
     score = rmsle(val_target_df[TARGET_COL].to_numpy(),
                   val_target_df['PREDICTION'].to_numpy())
