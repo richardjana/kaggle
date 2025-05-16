@@ -160,6 +160,7 @@ skl_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
 dataframe[TARGET_COL] = skl_transformer.transform(dataframe[[TARGET_COL]])
 
 # Split into train/test sets
+cv_index = 'full'
 y = dataframe.pop(TARGET_COL).to_numpy()
 X = dataframe.to_numpy()
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -199,14 +200,24 @@ model.fit(
 make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
 
 # Predict
-y_pred = model.predict(X_val)
+pred_train = model.predict(X_train)
+pred_val = model.predict(X_val)
 
-
+y_train = skl_transformer.inverse_transform(y_train)
 y_val = skl_transformer.inverse_transform(y_val)
-y_pred = skl_transformer.inverse_transform(y_pred)
+pred_train = skl_transformer.inverse_transform(pred_train)
+pred_val = skl_transformer.inverse_transform(pred_val)
+
+make_diagonal_plot(pd.DataFrame({TARGET_COL: y_train, 'PREDICTION': pred_train}),
+                   pd.DataFrame({TARGET_COL: y_val, 'PREDICTION': pred_val}),
+                   TARGET_COL,
+                   rmsle,
+                   'RMSLE',
+                   f"error_diagonal_LGBM_{cv_index}.png",
+                   precision=5)
 
 # Evaluate
-rmsle_final = rmsle(y_val, y_pred)
+rmsle_final = rmsle(y_val, pred_val)
 print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.7f}')
 
 # make prediction for the test data
