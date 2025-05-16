@@ -15,7 +15,7 @@ from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 
 TARGET_COL = 'Calories'
 
-NUM_CV_SPLITS = 1
+NUM_CV_SPLITS = 5
 
 NUM_LEAVES = 31
 LEARNING_RATE = 0.01
@@ -207,7 +207,7 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
             ]
         )
 
-        make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
+        make_training_plot(eval_results, 'rmse', f"training_LGBM_{cv_index}", precision=5)
 
         pred_train = model.predict(X_train)
         pred_val = model.predict(X_val)
@@ -235,7 +235,7 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
 
 else:  # train on the full data set for final prediction
     cv_index = 'full'  # for plot names
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.1, random_state=42)
 
     # Create the model
     model = lgb.LGBMRegressor(
