@@ -1,21 +1,17 @@
-import lightgbm as lgb
-from sklearn.datasets import fetch_california_housing
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-from lightgbm import early_stopping, log_evaluation
-from typing import Dict, List, Literal, Tuple, Union
 from itertools import combinations
-import matplotlib.pyplot as plt
+from typing import Dict, List
 import sys
+
+import lightgbm as lgb
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import FunctionTransformer, PowerTransformer
+from sklearn.preprocessing import FunctionTransformer
 
 sys.path.append('../')
-from kaggle_utilities import min_max_scaler, make_diagonal_plot, rmsle, RMSE  # noqa
+from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 
 TARGET_COL = 'Calories'
 
@@ -105,7 +101,8 @@ def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
 
     return pd_df
 
-def make_training_plot(history: Dict[str, List[int]], metric: str, fname: str, precision: int = 2) -> None:
+def make_training_plot(history: Dict[str, List[int]], metric: str,
+                       fname: str, precision: int = 2) -> None:
     """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
     Args:
         history (Dict[str, List[int]]): History from model.fit.
@@ -129,20 +126,20 @@ def make_training_plot(history: Dict[str, List[int]], metric: str, fname: str, p
 
 
 def make_prediction(model: lgb.LGBMRegressor, test_df: pd.DataFrame,
-                    skl_transformer: FunctionTransformer,
-                    cv_index: int | str) -> None:
+                    skl_transformer: FunctionTransformer, cv_index: int | str) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
-        model (tf.keras.Model): Model used for the prediction.
-        test_df_encoded (pd.DataFrame): DataFrame with the test data, pre-processed.
-        skl_transformer (FunctionTransformer | PowerTransformer): Transformer used to transform
+        model (lgb.LGBMRegressor): Model used for the prediction.
+        test_df (pd.DataFrame): DataFrame with the test data, pre-processed.
+        skl_transformer (FunctionTransformer): Transformer used to transform
             back to the original target space.
         cv_index (int | str): Index of the cross-validation fold, used in the file name.
     """
     submit_df = pd.read_csv('sample_submission.csv')
     submit_df[TARGET_COL] = model.predict(test_df.to_numpy())
     submit_df[TARGET_COL] = skl_transformer.inverse_transform(submit_df[[TARGET_COL]])
-    submit_df.to_csv(f"predictions_LGBM_KFold_{cv_index}.csv", columns=['id', TARGET_COL], index=False)
+    submit_df.to_csv(f"predictions_LGBM_KFold_{cv_index}.csv",
+                     columns=['id', TARGET_COL], index=False)
 
 
 # Load dataset
@@ -210,11 +207,8 @@ pred_val = skl_transformer.inverse_transform(pred_val)
 
 make_diagonal_plot(pd.DataFrame({TARGET_COL: y_train, 'PREDICTION': pred_train}),
                    pd.DataFrame({TARGET_COL: y_val, 'PREDICTION': pred_val}),
-                   TARGET_COL,
-                   rmsle,
-                   'RMSLE',
-                   f"error_diagonal_LGBM_{cv_index}.png",
-                   precision=5)
+                   TARGET_COL, rmsle, 'RMSLE',
+                   f"error_diagonal_LGBM_{cv_index}.png", precision=5)
 
 # Evaluate
 rmsle_final = rmsle(y_val, pred_val)
