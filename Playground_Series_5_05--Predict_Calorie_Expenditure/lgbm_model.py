@@ -3,9 +3,10 @@ from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from lightgbm import early_stopping, log_evaluation
-
+from typing import Dict, List, Literal, Tuple, Union
+from itertools import combinations
+import matplotlib.pyplot as plt
 import sys
-import keras
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
@@ -14,14 +15,12 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer
 
 sys.path.append('../')
-from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot, rmsle, rmsle_metric  # noqa
+from kaggle_utilities import min_max_scaler, make_diagonal_plot, rmsle, RMSE  # noqa
 
 TARGET_COL = 'Calories'
 
-def lgb_rmsle(y_true, y_pred):
-    y_true = np.maximum(0, y_true)
-    y_pred = np.maximum(0, y_pred)
-    return 'rmsle', np.sqrt(np.mean((np.log1p(y_pred) - np.log1p(y_true))**2)), False
+NUM_LEAVES = 31
+LEARNING_RATE = 0.05
 
 
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
@@ -39,42 +38,149 @@ def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
 
     return pd_df
 
+
+def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
+    """ Add columns to DataFrame, possibly inspired by other peoples solutions.
+    Args:
+        pd_df (pd.DataFrame): DataFrame to which to add new columns.
+    Returns:
+        pd.DataFrame: The DataFrame, with additional columns.
+    """
+    pd_df['BMI'] = pd_df['Weight'] / (pd_df['Height']**2) * 10000
+    pd_df['BMI_Class'] = pd.cut(pd_df['BMI'],
+                                bins=[0, 16.5, 18.5, 25, 30, 35, 40, 100],
+                                labels=[0, 1, 2, 3, 4, 5, 6]).astype(int)
+    pd_df['BMI_zscore'] = pd_df.groupby('Sex')['BMI'].transform(zscore)
+
+    BMR_male = 66.47 + pd_df['Weight']*13.75 + pd_df['Height']*5.003 - pd_df['Age']*6.755
+    BMR_female = 655.1 + pd_df['Weight']*9.563 + pd_df['Height']*1.85 - pd_df['Age']*4.676
+    pd_df['BMR'] = np.where(pd_df['Sex'] == 'male', BMR_male, BMR_female)
+    pd_df['BMR_zscore'] = pd_df.groupby('Sex')['BMR'].transform(zscore)
+
+    pd_df['Heart_rate_Zone'] = pd.cut(pd_df['Heart_Rate'], bins=[0, 90, 110, 200],
+                                      labels=[0, 1, 2]).astype(int)
+    pd_df['Heart_Rate_Zone_2'] = pd.cut(pd_df['Heart_Rate']/(220-pd_df['Age'])*100,
+                                        bins=[0, 50, 65, 80, 85, 92, 100],
+                                        labels=[0, 1, 2, 3, 4, 5]).astype(int)
+
+    pd_df['Age_Group'] = pd.cut(pd_df['Age'], bins=[0, 20, 35, 50, 100],
+                                labels=[0, 1, 2, 3]).astype(int)
+
+    cb_male = (0.6309*pd_df['Heart_Rate'] + 0.1988*pd_df['Weight']
+               + 0.2017*pd_df['Age'] - 55.0969) / 4.184 * pd_df['Duration']
+    cb_female = (0.4472*pd_df['Heart_Rate'] - 0.1263*pd_df['Weight']
+                 + 0.0740*pd_df['Age'] - 20.4022) / 4.184 * pd_df['Duration']
+    pd_df['Calories_Burned'] = np.where(pd_df['Sex'] == 'male', cb_male, cb_female)
+
+    for col in ['Height', 'Weight', 'Heart_Rate']:
+        pd_df[f"{col}_zscore"] = pd_df.groupby('Sex')[col].transform(zscore)
+
+    return pd_df
+
+
+def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
+    """ Generate extra feature columns from the original data, by combining columns.
+    Args:
+        pd_df (pd.DataFrame): The original data.
+    Returns:
+        pd.DataFrame: DataFrame with new columns added.
+    """
+    combine_cols = [col for col in pd_df.keys() if col != TARGET_COL]
+
+    new_cols = {}
+
+    for n in [2, 3]:
+        for cols in combinations(combine_cols, n):
+            col_name = '*'.join(cols)
+            new_cols[col_name] = pd_df[list(cols)].prod(axis=1)
+
+    for cols in combinations(combine_cols, 2):
+        col_name = '/'.join(cols)
+        new_cols[col_name] = pd_df[cols[0]] / pd_df[cols[1]]
+
+    pd_df = pd.concat([pd_df, pd.DataFrame(new_cols, index=pd_df.index)], axis=1)
+
+    return pd_df
+
+def make_training_plot(history: Dict[str, List[int]], metric: str, fname: str, precision: int = 2) -> None:
+    """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
+    Args:
+        history (Dict[str, List[int]]): History from model.fit.
+        fname (str): File name for the plot image.
+        precision (int): Number of decimals to print for the metric. Defaults to 2.
+    """
+    _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    ax.plot(np.arange(len(history['training'][metric]))+1, history['training'][metric], 'r',
+            label=f"training {metric} ({min(history['training'][metric]):.{precision}f})")
+    ax.plot(np.arange(len(history['valid_1'][metric]))+1, history['valid_1'][metric], 'g',
+            label=f"validation {metric} ({min(history['valid_1'][metric]):.{precision}f})")
+    ax.set_xlabel('epoch')
+    ax.set_ylabel(metric)
+    plt.legend(loc='best')
+    plt.savefig(f"{fname}_{metric}.png", bbox_inches='tight')
+
+    ax.set_yscale('log')
+    plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')
+
+    plt.close()
+
+
 # Load dataset
-#data = fetch_california_housing()
-#X, y = data.data, data.target
 dataframe = clean_data(pd.read_csv('train.csv'))
-#dataframe, rest = train_test_split(dataframe, test_size=0.95)  # reduce dataset size for testing
+#dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
 test = clean_data(pd.read_csv('test.csv'))
+
+dataframe = generate_extra_columns(dataframe)
+test = generate_extra_columns(test)
+
+dataframe = add_intuitive_columns(dataframe)
+test = add_intuitive_columns(test)
+
+skl_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
+dataframe[TARGET_COL] = skl_transformer.transform(dataframe[[TARGET_COL]])
 
 # Split into train/test sets
 y = dataframe.pop(TARGET_COL).to_numpy()
 X = dataframe.to_numpy()
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
+
 # Create the model
 model = lgb.LGBMRegressor(
-    objective='regression',
-    n_estimators=100,
-    learning_rate=0.1
+    objective = 'regression',
+    n_estimators = 1000,
+    learning_rate = LEARNING_RATE,
+    num_leaves = NUM_LEAVES
 )
+
+def lrscheduler(iteration):
+    initial_lr = 0.1
+    decay_rate = 0.99
+    return initial_lr * (decay_rate ** iteration)
+
+eval_results = {}  # Store evaluation results
 
 # Train with proper early stopping and logging callbacks
 model.fit(
     X_train, y_train,
-    eval_set=[(X_val, y_val)],
-    eval_metric=lgb_rmsle,
+    eval_set=[(X_train, y_train), (X_val, y_val)],
+    eval_metric='rmse',
     callbacks=[
-        early_stopping(stopping_rounds=10),
-        log_evaluation(period=10)
+        lgb.callback.early_stopping(stopping_rounds=100),
+        lgb.callback.log_evaluation(period=50),
+        lgb.callback.record_evaluation(eval_results)
     ]
 )
+
+make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
 
 # Predict
 y_pred = model.predict(X_val)
 
+
+y_val = skl_transformer.inverse_transform(y_val)
+y_pred = skl_transformer.inverse_transform(y_pred)
+
 # Evaluate
 rmsle_final = rmsle(y_val, y_pred)
-print(f'Mean Squared Error: {rmsle_final:.4f}')
-
-
-# works, but not with the correct metric !
+print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.5f}')
