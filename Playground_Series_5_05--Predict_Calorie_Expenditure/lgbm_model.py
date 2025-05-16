@@ -20,8 +20,11 @@ from kaggle_utilities import min_max_scaler, make_diagonal_plot, rmsle, RMSE  # 
 TARGET_COL = 'Calories'
 
 NUM_LEAVES = 31
-LEARNING_RATE = 0.05
-
+LEARNING_RATE = 0.01
+N_ESTIMATORS = 5000
+L1_REGULARIZATION = 1.0
+L2_REGULARIZATION = 1.0
+BAGGING_FRACTION = 0.8
 
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.
@@ -125,6 +128,23 @@ def make_training_plot(history: Dict[str, List[int]], metric: str, fname: str, p
     plt.close()
 
 
+def make_prediction(model: lgb.LGBMRegressor, test_df: pd.DataFrame,
+                    skl_transformer: FunctionTransformer,
+                    cv_index: int | str) -> None:
+    """ Make a prediction for the test data, with a given model.
+    Args:
+        model (tf.keras.Model): Model used for the prediction.
+        test_df_encoded (pd.DataFrame): DataFrame with the test data, pre-processed.
+        skl_transformer (FunctionTransformer | PowerTransformer): Transformer used to transform
+            back to the original target space.
+        cv_index (int | str): Index of the cross-validation fold, used in the file name.
+    """
+    submit_df = pd.read_csv('sample_submission.csv')
+    submit_df[TARGET_COL] = model.predict(test_df.to_numpy())
+    submit_df[TARGET_COL] = skl_transformer.inverse_transform(submit_df[[TARGET_COL]])
+    submit_df.to_csv(f"predictions_LGBM_KFold_{cv_index}.csv", columns=['id', TARGET_COL], index=False)
+
+
 # Load dataset
 dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
@@ -148,9 +168,13 @@ X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_st
 # Create the model
 model = lgb.LGBMRegressor(
     objective = 'regression',
-    n_estimators = 1000,
+    n_estimators = N_ESTIMATORS,
     learning_rate = LEARNING_RATE,
-    num_leaves = NUM_LEAVES
+    num_leaves = NUM_LEAVES,
+    subsample = BAGGING_FRACTION,
+    subsample_freq = 1,
+    reg_alpha = L1_REGULARIZATION,
+    reg_lambda = L2_REGULARIZATION
 )
 
 def lrscheduler(iteration):
@@ -183,4 +207,7 @@ y_pred = skl_transformer.inverse_transform(y_pred)
 
 # Evaluate
 rmsle_final = rmsle(y_val, y_pred)
-print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.5f}')
+print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.7f}')
+
+# make prediction for the test data
+make_prediction(model, test, skl_transformer, 'full')
