@@ -15,6 +15,8 @@ from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 
 TARGET_COL = 'Calories'
 
+NUM_CV_SPLITS = 1
+
 NUM_LEAVES = 31
 LEARNING_RATE = 0.01
 N_ESTIMATORS = 5000
@@ -142,9 +144,15 @@ def make_prediction(model: lgb.LGBMRegressor, test_df: pd.DataFrame,
                      columns=['id', TARGET_COL], index=False)
 
 
+def lrscheduler(iteration):
+    initial_lr = 0.1
+    decay_rate = 0.99
+    return initial_lr * (decay_rate ** iteration)
+
+
 # Load dataset
 dataframe = clean_data(pd.read_csv('train.csv'))
-#dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
+dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
 test = clean_data(pd.read_csv('test.csv'))
 
 dataframe = generate_extra_columns(dataframe)
@@ -156,63 +164,124 @@ test = add_intuitive_columns(test)
 skl_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
 dataframe[TARGET_COL] = skl_transformer.transform(dataframe[[TARGET_COL]])
 
-# Split into train/test sets
-cv_index = 'full'
 y = dataframe.pop(TARGET_COL).to_numpy()
 X = dataframe.to_numpy()
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
+if NUM_CV_SPLITS > 1:  # do cross-validation
+    kfold = KFold(n_splits=NUM_CV_SPLITS, shuffle=True, random_state=42)
+    scores = []
+    cv_index = 0
 
-# Create the model
-model = lgb.LGBMRegressor(
-    objective = 'regression',
-    n_estimators = N_ESTIMATORS,
-    learning_rate = LEARNING_RATE,
-    num_leaves = NUM_LEAVES,
-    subsample = BAGGING_FRACTION,
-    subsample_freq = 1,
-    reg_alpha = L1_REGULARIZATION,
-    reg_lambda = L2_REGULARIZATION
-)
+    for train_index, val_index in kfold.split(X):
+        X_train, X_val = X[train_index], X[val_index]
+        y_train, y_val = y[train_index], y[val_index]
 
-def lrscheduler(iteration):
-    initial_lr = 0.1
-    decay_rate = 0.99
-    return initial_lr * (decay_rate ** iteration)
+        train_df = dataframe.iloc[train_index].copy()
+        val_df = dataframe.iloc[val_index].copy()
+        test_df = test.copy()
 
-eval_results = {}  # Store evaluation results
+        cv_index += 1
 
-# Train with proper early stopping and logging callbacks
-model.fit(
-    X_train, y_train,
-    eval_set=[(X_train, y_train), (X_val, y_val)],
-    eval_metric='rmse',
-    callbacks=[
-        lgb.callback.early_stopping(stopping_rounds=100),
-        lgb.callback.log_evaluation(period=50),
-        lgb.callback.record_evaluation(eval_results)
-    ]
-)
+        # Create the model
+        model = lgb.LGBMRegressor(
+            objective = 'regression',
+            n_estimators = N_ESTIMATORS,
+            learning_rate = LEARNING_RATE,
+            num_leaves = NUM_LEAVES,
+            subsample = BAGGING_FRACTION,
+            subsample_freq = 1,
+            reg_alpha = L1_REGULARIZATION,
+            reg_lambda = L2_REGULARIZATION
+        )
 
-make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
+        eval_results = {}  # Store evaluation results
 
-# Predict
-pred_train = model.predict(X_train)
-pred_val = model.predict(X_val)
+        model.fit(
+            X_train, y_train,
+            eval_set=[(X_train, y_train), (X_val, y_val)],
+            eval_metric='rmse',
+            callbacks=[
+                lgb.callback.early_stopping(stopping_rounds=100),
+                lgb.callback.log_evaluation(period=50),
+                lgb.callback.record_evaluation(eval_results)
+            ]
+        )
 
-y_train = skl_transformer.inverse_transform(y_train)
-y_val = skl_transformer.inverse_transform(y_val)
-pred_train = skl_transformer.inverse_transform(pred_train)
-pred_val = skl_transformer.inverse_transform(pred_val)
+        make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
 
-make_diagonal_plot(pd.DataFrame({TARGET_COL: y_train, 'PREDICTION': pred_train}),
-                   pd.DataFrame({TARGET_COL: y_val, 'PREDICTION': pred_val}),
-                   TARGET_COL, rmsle, 'RMSLE',
-                   f"error_diagonal_LGBM_{cv_index}.png", precision=5)
+        pred_train = model.predict(X_train)
+        pred_val = model.predict(X_val)
 
-# Evaluate
-rmsle_final = rmsle(y_val, pred_val)
-print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.7f}')
+        y_train = skl_transformer.inverse_transform(y_train)
+        y_val = skl_transformer.inverse_transform(y_val)
+        pred_train = skl_transformer.inverse_transform(pred_train)
+        pred_val = skl_transformer.inverse_transform(pred_val)
 
-# make prediction for the test data
-make_prediction(model, test, skl_transformer, 'full')
+        make_diagonal_plot(pd.DataFrame({TARGET_COL: y_train, 'PREDICTION': pred_train}),
+                        pd.DataFrame({TARGET_COL: y_val, 'PREDICTION': pred_val}),
+                        TARGET_COL, rmsle, 'RMSLE',
+                        f"error_diagonal_LGBM_{cv_index}.png", precision=5)
+
+        # Evaluate
+        rmsle_final = rmsle(y_val, pred_val)
+        print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.7f}')
+
+        # make prediction for the test data
+        make_prediction(model, test, skl_transformer, cv_index)
+
+        scores.append(rmsle_final)
+
+    print(f"Average cross-validation RMSLE: {np.mean(scores):.5f} ({scores})")
+
+else:  # train on the full data set for final prediction
+    cv_index = 'full'  # for plot names
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Create the model
+    model = lgb.LGBMRegressor(
+        objective = 'regression',
+        n_estimators = N_ESTIMATORS,
+        learning_rate = LEARNING_RATE,
+        num_leaves = NUM_LEAVES,
+        subsample = BAGGING_FRACTION,
+        subsample_freq = 1,
+        reg_alpha = L1_REGULARIZATION,
+        reg_lambda = L2_REGULARIZATION
+    )
+
+    eval_results = {}  # Store evaluation results
+
+    # Train with proper early stopping and logging callbacks
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_train, y_train), (X_val, y_val)],
+        eval_metric='rmse',
+        callbacks=[
+            lgb.callback.early_stopping(stopping_rounds=100),
+            lgb.callback.log_evaluation(period=50),
+            lgb.callback.record_evaluation(eval_results)
+        ]
+    )
+
+    make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
+
+    # Predict
+    pred_train = model.predict(X_train)
+    pred_val = model.predict(X_val)
+
+    y_train = skl_transformer.inverse_transform(y_train)
+    y_val = skl_transformer.inverse_transform(y_val)
+    pred_train = skl_transformer.inverse_transform(pred_train)
+    pred_val = skl_transformer.inverse_transform(pred_val)
+
+    make_diagonal_plot(pd.DataFrame({TARGET_COL: y_train, 'PREDICTION': pred_train}),
+                    pd.DataFrame({TARGET_COL: y_val, 'PREDICTION': pred_val}),
+                    TARGET_COL, rmsle, 'RMSLE',
+                    f"error_diagonal_LGBM_{cv_index}.png", precision=5)
+
+    # Evaluate
+    rmsle_final = rmsle(y_val, pred_val)
+    print(f'Root Mean Squared Logarithmic Error: {rmsle_final:.7f}')
+
+    # make prediction for the test data
+    make_prediction(model, test, skl_transformer, cv_index)
