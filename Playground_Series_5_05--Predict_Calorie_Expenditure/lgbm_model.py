@@ -208,8 +208,6 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
             ]
         )
 
-        joblib.dump(model, 'lgb_model.pkl')
-
         make_training_plot(eval_results, 'rmse', f"training_LGBM_{cv_index}", precision=5)
 
         pred_train = model.predict(X_train)
@@ -265,6 +263,8 @@ else:  # train on the full data set for final prediction
             lgb.callback.record_evaluation(eval_results)
         ]
     )
+
+    joblib.dump(model, 'lgb_model.pkl')
 
     make_training_plot(eval_results, 'rmse', 'training_LGBM', precision=5)
 
