@@ -2,6 +2,7 @@ from itertools import combinations
 from typing import Dict, List
 import sys
 
+import joblib
 import lightgbm as lgb
 import matplotlib.pyplot as plt
 import numpy as np
@@ -206,6 +207,8 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
                 lgb.callback.record_evaluation(eval_results)
             ]
         )
+
+        joblib.dump(model, 'lgb_model.pkl')
 
         make_training_plot(eval_results, 'rmse', f"training_LGBM_{cv_index}", precision=5)
 
