@@ -246,6 +246,9 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
                         epochs=NUM_EPOCHS,
                         batch_size=BATCH_SIZE,
                         callbacks=[early_stop])
+    
+    if cv_index == 'full':
+        model.save('tf_model.h5')
 
     make_training_plot(history.history, f"training_KFold_{cv_index}.png", precision=5)
 
