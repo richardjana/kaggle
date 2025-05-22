@@ -1,7 +1,9 @@
 from itertools import combinations
+from typing import Dict, List
 
 import joblib
 import lightgbm as lgb
+import matplotlib.pyplot as plt
 import numpy as np
 import optuna
 import pandas as pd
@@ -9,6 +11,10 @@ from scipy.stats import zscore
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.metrics import mean_squared_log_error
+
+import sys
+sys.path.append('../')
+from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 
 TARGET_COL = 'Calories'
 
@@ -92,6 +98,31 @@ def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
 
     return pd_df
 
+
+def make_training_plot(history: Dict[str, List[int]], metric: str,
+                       fname: str, precision: int = 2) -> None:
+    """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
+    Args:
+        history (Dict[str, List[int]]): History from model.fit.
+        fname (str): File name for the plot image.
+        precision (int): Number of decimals to print for the metric. Defaults to 2.
+    """
+    _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
+    ax.plot(np.arange(len(history['training'][metric]))+1, history['training'][metric], 'r',
+            label=f"training {metric} ({min(history['training'][metric]):.{precision}f})")
+    ax.plot(np.arange(len(history['valid_1'][metric]))+1, history['valid_1'][metric], 'g',
+            label=f"validation {metric} ({min(history['valid_1'][metric]):.{precision}f})")
+    ax.set_xlabel('epoch')
+    ax.set_ylabel(metric)
+    plt.legend(loc='best')
+    plt.savefig(f"{fname}_{metric}.png", bbox_inches='tight')
+
+    ax.set_yscale('log')
+    plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')
+
+    plt.close()
+
+
 # Load dataset
 dataframe = clean_data(pd.read_csv('train.csv'))
 #dataframe, rest = train_test_split(dataframe, test_size=0.90)  # reduce dataset size for testing
@@ -157,7 +188,7 @@ def objective(trial):
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=50, timeout=18000)  # Adjust timeout or n_trials as needed
+study.optimize(objective, n_trials=1000, timeout=75600)  # Adjust timeout or n_trials as needed
 
 # Save the study
 #study_name = "lgbm_rmsle_study"
@@ -195,6 +226,8 @@ model.fit(
 
 joblib.dump(model, 'lgb_model.pkl')
 
+make_training_plot(eval_results, 'rmse', 'training_LGBM_optuna', precision=5)
+
 # Predict
 pred_train = model.predict(X)
 pred_train = skl_transformer.inverse_transform(pred_train.reshape(-1, 1))
@@ -210,3 +243,10 @@ test_preds = skl_transformer.inverse_transform(test_preds.reshape(-1, 1))
 submit_df = pd.read_csv('sample_submission.csv')
 submit_df[TARGET_COL] = test_preds
 submit_df.to_csv(f"predictions_LGBM.csv", columns=['id', TARGET_COL], index=False)
+
+y = skl_transformer.inverse_transform(y)
+
+make_diagonal_plot(pd.DataFrame({TARGET_COL: y.ravel(), 'PREDICTION': pred_train.ravel()}),
+                        pd.DataFrame({TARGET_COL: y.ravel(), 'PREDICTION': pred_train.ravel()}),
+                        TARGET_COL, rmsle, 'RMSLE',
+                        f"error_diagonal_LGBM_optuna.png", precision=5)
