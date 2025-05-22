@@ -92,10 +92,10 @@ def make_diagonal_plot(train: pd.DataFrame,
     plt.close()
 
 
-def make_training_plot(history: Dict[str, List[int]], fname: str, precision: int = 2) -> None:
+def make_training_plot(history: Dict[str, List[float]], fname: str, precision: int = 2) -> None:
     """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
     Args:
-        history (Dict[str, List[int]]): History from model.fit.
+        history (Dict[str, List[float]]): History from model.fit.
         fname (str): File name for the plot image.
         precision (int): Number of decimals to print for the metric. Defaults to 2.
     """
