@@ -100,8 +100,6 @@ def load_preprocess_data(train_csv: str, test_csv: str, target_col: str,
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
     """
     train = clean_data(pd.read_csv(train_csv))
-    from sklearn.model_selection import train_test_split
-    train, _ = train_test_split(train, test_size=0.95)  # reduce dataset size for testing
     test = clean_data(pd.read_csv(test_csv))
 
     train = generate_extra_columns(train, target_col)
