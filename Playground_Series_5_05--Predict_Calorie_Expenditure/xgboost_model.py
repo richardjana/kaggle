@@ -37,7 +37,6 @@ def make_training_plot(history: Dict[str, Dict[str, List[float]]], metric: str,
     ax.set_xlabel('epoch')
     ax.set_ylabel(metric)
     plt.legend(loc='best')
-    plt.savefig(f"{fname}_{metric}.png", bbox_inches='tight')
 
     ax.set_yscale('log')
     plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')

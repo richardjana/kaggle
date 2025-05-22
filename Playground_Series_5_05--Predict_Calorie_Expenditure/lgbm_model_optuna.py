@@ -34,7 +34,6 @@ def make_training_plot(history: Dict[str, List[int]], metric: str,
     ax.set_xlabel('epoch')
     ax.set_ylabel(metric)
     plt.legend(loc='best')
-    plt.savefig(f"{fname}_{metric}.png", bbox_inches='tight')
 
     ax.set_yscale('log')
     plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')
@@ -49,10 +48,6 @@ dataframe, test = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, log1
 # Split into train/test sets
 y = dataframe.pop(TARGET_COL).to_numpy()
 X = dataframe.to_numpy()
-
-# Define RMSLE function
-def rmsle(y_true, y_pred):
-    return np.sqrt(mean_squared_log_error(y_true, y_pred))
 
 # Define objective function for Optuna
 def objective(trial):
@@ -98,11 +93,6 @@ def objective(trial):
 # Create and optimize Optuna study
 study = optuna.create_study(direction='minimize')
 study.optimize(objective, n_trials=1000, timeout=75600)  # Adjust timeout or n_trials as needed
-
-# Save the study
-#study_name = "lgbm_rmsle_study"
-#study_storage = f"sqlite:///{study_name}.db"
-#study = optuna.create_study(study_name=study_name, storage=study_storage, load_if_exists=True)
 
 # Print best trial
 print("Best trial:")
