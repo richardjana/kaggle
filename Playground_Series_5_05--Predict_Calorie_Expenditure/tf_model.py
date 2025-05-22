@@ -13,6 +13,7 @@ import tensorflow as tf
 
 sys.path.append('../')
 from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot, rmsle, rmsle_metric  # noqa
+from prepare_calories_data import load_preprocess_data
 
 ##### hyper params for the model #####
 LAYER_SIZE = 64
@@ -25,134 +26,13 @@ BATCH_SIZE = 128
 NUM_CV_SPLITS = 1
 TARGET_COL = 'Calories'
 
-LOSS_FUNCTION = tf.keras.losses.MeanSquaredLogarithmicError()
-METRIC = rmsle_metric
-#LOSS_FUNCTION = tf.keras.losses.MeanSquaredError()
-#METRIC = 'root_mean_squared_error'
+LOSS_FUNCTION = tf.keras.losses.MeanSquaredError()
+METRIC = 'root_mean_squared_error'
 
 
-class PositivePowerTransformer(BaseEstimator, TransformerMixin):
-    """ Modify the sklearn PowerTransformer by shifting the transformed values. This is done in
-        order to obtain exclusively positive values for the RMSLE metric.
-    """
-    def __init__(self, method: Literal['yeo-johnson', 'box-cox'] = 'yeo-johnson') -> None:
-        self.transformer: PowerTransformer = PowerTransformer(method=method)
-        self.shift_value: float = 0.0
-
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> 'PositivePowerTransformer':
-        """ Fit the transformer to the data."""
-        self.transformer.fit(X)
-
-        X_transformed: np.ndarray = self.transformer.transform(X)
-
-        X_min: float = X_transformed.min()
-        if X_min < 0:
-            self.shift_value = abs(X_min)
-        else:
-            self.shift_value = 0
-
-        return self
-
-    def transform(self, X: np.ndarray) -> np.ndarray:
-        """ Transform the data, ensuring no negative values."""
-        return self.transformer.transform(X) + self.shift_value
-
-    def inverse_transform(self, X: np.ndarray) -> np.ndarray:
-        """ Inverse transform the data."""
-        return self.transformer.inverse_transform(X - self.shift_value)
-
-
-def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
-    """ Apply cleaning operations to pandas DataFrame.
-    Args:
-        pd_df (pd.DataFrame): The DataFrame to clean.
-        drop (bool, optional): If rows should be dropped (option for training DataFrame) or not
-            (test DataFrame). Defaults to True.
-    Returns:
-        pd.DataFrame: Cleaned DataFrame.
-    """
-    pd_df.drop('id', axis=1, inplace=True)
-
-    pd_df['Sex'] = pd_df['Sex'].map({'male': 0, 'female': 1})
-
-    return pd_df
-
-
-def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
-    """ Add columns to DataFrame, possibly inspired by other peoples solutions.
-    Args:
-        pd_df (pd.DataFrame): DataFrame to which to add new columns.
-    Returns:
-        pd.DataFrame: The DataFrame, with additional columns.
-    """
-    pd_df['BMI'] = pd_df['Weight'] / (pd_df['Height']**2) * 10000
-    pd_df['BMI_Class'] = pd.cut(pd_df['BMI'],
-                                bins=[0, 16.5, 18.5, 25, 30, 35, 40, 100],
-                                labels=[0, 1, 2, 3, 4, 5, 6]).astype(int)
-    pd_df['BMI_zscore'] = pd_df.groupby('Sex')['BMI'].transform(zscore)
-
-    BMR_male = 66.47 + pd_df['Weight']*13.75 + pd_df['Height']*5.003 - pd_df['Age']*6.755
-    BMR_female = 655.1 + pd_df['Weight']*9.563 + pd_df['Height']*1.85 - pd_df['Age']*4.676
-    pd_df['BMR'] = np.where(pd_df['Sex'] == 'male', BMR_male, BMR_female)
-    pd_df['BMR_zscore'] = pd_df.groupby('Sex')['BMR'].transform(zscore)
-
-    pd_df['Heart_rate_Zone'] = pd.cut(pd_df['Heart_Rate'], bins=[0, 90, 110, 200],
-                                      labels=[0, 1, 2]).astype(int)
-    pd_df['Heart_Rate_Zone_2'] = pd.cut(pd_df['Heart_Rate']/(220-pd_df['Age'])*100,
-                                        bins=[0, 50, 65, 80, 85, 92, 100],
-                                        labels=[0, 1, 2, 3, 4, 5]).astype(int)
-
-    pd_df['Age_Group'] = pd.cut(pd_df['Age'], bins=[0, 20, 35, 50, 100],
-                                labels=[0, 1, 2, 3]).astype(int)
-
-    cb_male = (0.6309*pd_df['Heart_Rate'] + 0.1988*pd_df['Weight']
-               + 0.2017*pd_df['Age'] - 55.0969) / 4.184 * pd_df['Duration']
-    cb_female = (0.4472*pd_df['Heart_Rate'] - 0.1263*pd_df['Weight']
-                 + 0.0740*pd_df['Age'] - 20.4022) / 4.184 * pd_df['Duration']
-    pd_df['Calories_Burned'] = np.where(pd_df['Sex'] == 'male', cb_male, cb_female)
-
-    for col in ['Height', 'Weight', 'Heart_Rate']:
-        pd_df[f"{col}_zscore"] = pd_df.groupby('Sex')[col].transform(zscore)
-
-    return pd_df
-
-
-def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
-    """ Generate extra feature columns from the original data, by combining columns.
-    Args:
-        pd_df (pd.DataFrame): The original data.
-    Returns:
-        pd.DataFrame: DataFrame with new columns added.
-    """
-    combine_cols = [col for col in pd_df.keys() if col != TARGET_COL]
-
-    new_cols = {}
-
-    for n in [2]:
-        for cols in combinations(combine_cols, n):
-            col_name = '*'.join(cols)
-            new_cols[col_name] = pd_df[list(cols)].prod(axis=1)
-
-    for cols in combinations(combine_cols, 2):
-        col_name = '/'.join(cols)
-        new_cols[col_name] = pd_df[cols[0]] / pd_df[cols[1]]
-
-    pd_df = pd.concat([pd_df, pd.DataFrame(new_cols, index=pd_df.index)], axis=1)
-
-    return pd_df
-
-
-##### load data #####
-dataframe = clean_data(pd.read_csv('train.csv'))
-# reduce dataset size for testing
-#dataframe, rest = train_test_split(dataframe, test_size=0.95)
-test = clean_data(pd.read_csv('test.csv'))
-
-dataframe = generate_extra_columns(dataframe)
-test = generate_extra_columns(test)
-
-dataframe = add_intuitive_columns(dataframe)
-test = add_intuitive_columns(test)
+# Load dataset
+log1p_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
+dataframe, test = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, log1p_transformer)
 
 
 def make_new_model(shape: int) -> tf.keras.Model:
@@ -227,17 +107,14 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
     scale_columns = [col for col in train_df.keys() if col != TARGET_COL]
     train_df, val_df, test_df = min_max_scaler([train_df, val_df, test_df], scale_columns)
 
-    #skl_transformer = PositivePowerTransformer(method='yeo-johnson')
-    skl_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
-    #train_df[TARGET_COL] = skl_transformer.fit_transform(train_df[[TARGET_COL]])
-    train_df[TARGET_COL] = skl_transformer.transform(train_df[[TARGET_COL]])
-    val_df[TARGET_COL] = skl_transformer.transform(val_df[[TARGET_COL]])
+    #train_df[TARGET_COL] = log1p_transformer.transform(train_df[[TARGET_COL]])
+    #val_df[TARGET_COL] = log1p_transformer.transform(val_df[[TARGET_COL]])
 
     train_target_df = pd.DataFrame({TARGET_COL: train_df.pop(TARGET_COL)})
-    y_train = train_target_df.to_numpy()
+    y_train = log1p_transformer.transform(train_target_df.to_numpy())
     X_train = train_df.to_numpy()
     val_target_df = pd.DataFrame({TARGET_COL: val_df.pop(TARGET_COL)})
-    y_val = val_target_df.to_numpy()
+    y_val = log1p_transformer.transform(val_target_df.to_numpy())
     X_val = val_df.to_numpy()
 
     model = make_new_model(shape=X_train.shape[1])
@@ -246,19 +123,19 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
                         epochs=NUM_EPOCHS,
                         batch_size=BATCH_SIZE,
                         callbacks=[early_stop])
-    
+
     if cv_index == 'full':
         model.save('tf_model.h5')
 
     make_training_plot(history.history, f"training_KFold_{cv_index}.png", precision=5)
 
-    train_target_df['PREDICTION'] = model.predict(X_train)
-    val_target_df['PREDICTION'] = model.predict(X_val)
+    train_target_df['PREDICTION'] = log1p_transformer.inverse_transform(model.predict(X_train))
+    val_target_df['PREDICTION'] = log1p_transformer.inverse_transform(model.predict(X_val))
 
     make_diagonal_plot(train_target_df, val_target_df, TARGET_COL, rmsle,
                        'RMSLE', f"error_diagonal_{cv_index}.png", precision=5)
 
-    make_prediction(model, test_df, skl_transformer, cv_index)
+    make_prediction(model, test_df, log1p_transformer, cv_index)
 
     score = rmsle(val_target_df[TARGET_COL].to_numpy(),
                   val_target_df['PREDICTION'].to_numpy())
