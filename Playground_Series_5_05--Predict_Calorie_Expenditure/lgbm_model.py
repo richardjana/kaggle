@@ -179,7 +179,6 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
 
         train_df = dataframe.iloc[train_index].copy()
         val_df = dataframe.iloc[val_index].copy()
-        test_df = test.copy()
 
         cv_index += 1
 
