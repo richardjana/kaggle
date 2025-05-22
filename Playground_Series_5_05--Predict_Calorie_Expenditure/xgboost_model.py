@@ -3,7 +3,6 @@ from typing import Dict, List
 import sys
 
 import joblib
-#import xgboost as xgb
 from xgboost.sklearn import XGBRegressor
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,17 +20,19 @@ NUM_CV_SPLITS = 5
 
 NUM_ESTIMATORS = 5000
 LEARNING_RATE = 0.01
-MAX_DEPTH = 6
-SUBSAMPLE = 0.8
+MAX_DEPTH = 4
+SUBSAMPLE = 0.7
 COLSAMPLE_BYTREE = 0.8
-L1_REGULARIZATION = 1.0
+L1_REGULARIZATION = 0.1
 L2_REGULARIZATION = 1.0
+
 
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame. """
     pd_df.drop('id', axis=1, inplace=True)
     pd_df['Sex'] = pd_df['Sex'].map({'male': 0, 'female': 1})
     return pd_df
+
 
 def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Add intuitive columns to the DataFrame. """
@@ -83,6 +84,7 @@ def generate_extra_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
     pd_df = pd.concat([pd_df, pd.DataFrame(new_cols, index=pd_df.index)], axis=1)
     return pd_df
 
+
 def make_training_plot(history: Dict[str, Dict[str, List[float]]], metric: str,
                        fname: str, precision: int = 2) -> None:
     """ Make plots to visualize the training progress. """
@@ -101,7 +103,7 @@ def make_training_plot(history: Dict[str, Dict[str, List[float]]], metric: str,
 
     plt.close()
 
-#def make_prediction(model: xgb.XGBRegressor, test_df: pd.DataFrame,
+
 def make_prediction(model: XGBRegressor, test_df: pd.DataFrame,
                     skl_transformer: FunctionTransformer, cv_index: int | str) -> None:
     """ Make a prediction for the test data. """
@@ -114,7 +116,7 @@ def make_prediction(model: XGBRegressor, test_df: pd.DataFrame,
 
 # Load dataset
 dataframe = clean_data(pd.read_csv('train.csv'))
-dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
+#dataframe, rest = train_test_split(dataframe, test_size=0.80)  # reduce dataset size for testing
 test = clean_data(pd.read_csv('test.csv'))
 
 dataframe = generate_extra_columns(dataframe)
