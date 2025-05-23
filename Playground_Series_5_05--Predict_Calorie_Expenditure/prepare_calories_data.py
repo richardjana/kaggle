@@ -88,7 +88,7 @@ def generate_extra_columns(pd_df: pd.DataFrame, target_col: str) -> pd.DataFrame
 
 
 def load_preprocess_data(train_csv: str, test_csv: str, target_col: str,
-                         transformer: FunctionTransformer | None
+                         transformer: FunctionTransformer | None = None
                          ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """ Prepare training and test data into pandas DataFrames: added columns, transformations, etc.
     Args:
@@ -96,6 +96,7 @@ def load_preprocess_data(train_csv: str, test_csv: str, target_col: str,
         test_csv (str): Name of the test file.
         target_col (str): Name of the target column.
         transformer (FunctionTransformer | None): Transformer to be applied to the target (log1p).
+            Defaults to None.
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
     """
