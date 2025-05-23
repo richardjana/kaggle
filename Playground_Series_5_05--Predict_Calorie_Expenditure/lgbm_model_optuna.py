@@ -18,29 +18,6 @@ from prepare_calories_data import load_preprocess_data
 TARGET_COL = 'Calories'
 
 
-def make_training_plot(history: Dict[str, List[int]], metric: str,
-                       fname: str, precision: int = 2) -> None:
-    """ Make plots to visualize the training progress: y-axis 1) linear scale 2) log scale.
-    Args:
-        history (Dict[str, List[int]]): History from model.fit.
-        fname (str): File name for the plot image.
-        precision (int): Number of decimals to print for the metric. Defaults to 2.
-    """
-    _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
-    ax.plot(np.arange(len(history['training'][metric]))+1, history['training'][metric], 'r',
-            label=f"training {metric} ({min(history['training'][metric]):.{precision}f})")
-    ax.plot(np.arange(len(history['valid_1'][metric]))+1, history['valid_1'][metric], 'g',
-            label=f"validation {metric} ({min(history['valid_1'][metric]):.{precision}f})")
-    ax.set_xlabel('epoch')
-    ax.set_ylabel(metric)
-    plt.legend(loc='best')
-
-    ax.set_yscale('log')
-    plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')
-
-    plt.close()
-
-
 # Load dataset
 log1p_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
 dataframe, test = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, log1p_transformer)
@@ -124,8 +101,6 @@ model.fit(
 )
 
 joblib.dump(model, 'lgb_model.pkl')
-
-make_training_plot(eval_results, 'rmse', 'training_LGBM_optuna', precision=5)
 
 # Predict
 pred_train = model.predict(X)

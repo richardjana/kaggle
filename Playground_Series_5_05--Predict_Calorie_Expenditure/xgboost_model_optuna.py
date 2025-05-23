@@ -17,24 +17,6 @@ from prepare_calories_data import load_preprocess_data
 TARGET_COL = 'Calories'
 
 
-def make_training_plot(history: Dict[str, Dict[str, List[float]]], metric: str,
-                       fname: str, precision: int = 2) -> None:
-    """ Make plots to visualize the training progress. """
-    _, ax = plt.subplots(1, 1, figsize=(7, 7), tight_layout=True)
-    ax.plot(np.arange(len(history['validation_0'][metric]))+1, history['validation_0'][metric], 'r',
-            label=f"training {metric} ({min(history['validation_0'][metric]):.{precision}f})")
-    ax.plot(np.arange(len(history['validation_1'][metric]))+1, history['validation_1'][metric], 'g',
-            label=f"validation {metric} ({min(history['validation_1'][metric]):.{precision}f})")
-    ax.set_xlabel('epoch')
-    ax.set_ylabel(metric)
-    plt.legend(loc='best')
-
-    ax.set_yscale('log')
-    plt.savefig(f"{fname}_{metric}_LOG.png", bbox_inches='tight')
-
-    plt.close()
-
-
 # Load dataset
 log1p_transformer = FunctionTransformer(np.log1p, inverse_func=np.expm1)
 dataframe, test = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, log1p_transformer)
@@ -105,8 +87,6 @@ model.fit(X, y, eval_set=[(X, y)], verbose=50)
 eval_results = model.evals_result()
 
 joblib.dump(model, 'xgb_model.pkl')
-
-make_training_plot(eval_results, 'rmse', 'training_XGBoost_optuna', precision=5)
 
 # Predict
 pred_train = model.predict(X)
