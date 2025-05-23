@@ -12,7 +12,7 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 
-sys.path.append('../')
+sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 
 TARGET_COL = 'Calories'

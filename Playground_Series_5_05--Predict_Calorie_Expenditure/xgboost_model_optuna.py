@@ -10,7 +10,7 @@ from sklearn.preprocessing import FunctionTransformer
 from xgboost.sklearn import XGBRegressor
 
 import sys
-sys.path.append('../')
+sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import make_diagonal_plot, rmsle # noqa
 from prepare_calories_data import load_preprocess_data
 

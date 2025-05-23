@@ -11,7 +11,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer
 import tensorflow as tf
 
-sys.path.append('../')
+sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_plot, rmsle, rmsle_metric  # noqa
 from prepare_calories_data import load_preprocess_data
 

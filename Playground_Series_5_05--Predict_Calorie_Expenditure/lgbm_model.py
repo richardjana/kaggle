@@ -9,7 +9,7 @@ import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import FunctionTransformer
 
-sys.path.append('../')
+sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 from prepare_calories_data import load_preprocess_data
 
