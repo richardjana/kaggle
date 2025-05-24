@@ -80,10 +80,6 @@ for key, value in study.best_params.items():
 
 # Train final model with best parameters
 best_params = study.best_params
-best_params.update({
-    'objective': 'regression',
-    'n_estimators': 5000
-})
 
 model = lgb.LGBMRegressor(**best_params)
 
