@@ -16,14 +16,14 @@ from kaggle_utilities import min_max_scaler, make_training_plot, make_diagonal_p
 from prepare_calories_data import load_preprocess_data
 
 ##### hyper params for the model #####
-LAYER_SIZE = 64
-L2_REG = 0.01 / 10
-DROP_RATE = 0.25
+LAYER_SIZE = 600
+L2_REG = 0.01 / 50
+DROP_RATE = 0.025
 LEARNING_RATE_INITIAL = 1e-4
 LEARNING_RATE_FINAL = 1e-6
 NUM_EPOCHS = 500
 BATCH_SIZE = 128
-NUM_CV_SPLITS = 1
+NUM_CV_SPLITS = 5
 TARGET_COL = 'Calories'
 
 LOSS_FUNCTION = tf.keras.losses.MeanSquaredError()
