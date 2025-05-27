@@ -107,14 +107,11 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
     scale_columns = [col for col in train_df.keys() if col != TARGET_COL]
     train_df, val_df, test_df = min_max_scaler([train_df, val_df, test_df], scale_columns)
 
-    #train_df[TARGET_COL] = log1p_transformer.transform(train_df[[TARGET_COL]])
-    #val_df[TARGET_COL] = log1p_transformer.transform(val_df[[TARGET_COL]])
-
     train_target_df = pd.DataFrame({TARGET_COL: train_df.pop(TARGET_COL)})
-    y_train = log1p_transformer.transform(train_target_df.to_numpy())
+    y_train = train_target_df.to_numpy()
     X_train = train_df.to_numpy()
     val_target_df = pd.DataFrame({TARGET_COL: val_df.pop(TARGET_COL)})
-    y_val = log1p_transformer.transform(val_target_df.to_numpy())
+    y_val = val_target_df.to_numpy()
     X_val = val_df.to_numpy()
 
     model = make_new_model(shape=X_train.shape[1])
@@ -129,6 +126,8 @@ def train_model(train_df: pd.DataFrame, val_df: pd.DataFrame,
 
     make_training_plot(history.history, f"training_KFold_{cv_index}.png", precision=5)
 
+    train_target_df[TARGET_COL] = log1p_transformer.inverse_transform(train_target_df[TARGET_COL])
+    val_target_df[TARGET_COL] = log1p_transformer.inverse_transform(val_target_df[TARGET_COL])
     train_target_df['PREDICTION'] = log1p_transformer.inverse_transform(model.predict(X_train))
     val_target_df['PREDICTION'] = log1p_transformer.inverse_transform(model.predict(X_val))
 
@@ -166,7 +165,7 @@ if NUM_CV_SPLITS > 1:  # do cross-validation
         cv_split_score = train_model(train_df, val_df, test_df, cv_index)
         scores.append(cv_split_score)
 
-    print(f'Average cross-validation RMSLE: {np.mean(scores):.4f} ({scores})')
+    print(f'Average cross-validation RMSLE: {np.mean(scores):.5f} ({scores})')
 
 else:  # train on the full data set for final prediction
     cv_index = 'full'  # for plot names
