@@ -10,7 +10,7 @@ from sklearn.metrics import root_mean_squared_error
 from sklearn.preprocessing import FunctionTransformer
 import tensorflow as tf
 
-sys.path.append('../')
+sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import make_diagonal_plot, rmsle  # noqa
 from prepare_calories_data import load_preprocess_data
 
@@ -49,8 +49,8 @@ for i, (name, model) in enumerate(base_models):
         X_tr, X_val = X_train_full[train_idx], X_train_full[val_idx]
         y_tr, y_val = y_train_full[train_idx], y_train_full[val_idx]
 
-        meta_train[val_idx, i] = model.predict(X_val)
-        meta_test_fold[:, fold] = model.predict(X_test)
+        meta_train[val_idx, i] = model.predict(X_val).reshape(-1)
+        meta_test_fold[:, fold] = model.predict(X_test).reshape(-1)
 
     # Average test predictions from each fold
     meta_test[:, i] = meta_test_fold.mean(axis=1)
