@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from collections.abc import Callable
 import matplotlib
@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import tensorflow as tf
+import xgboost as xgb
 
 matplotlib.use('Agg')
 
@@ -200,3 +202,87 @@ def rmsle(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     log_pred = np.log1p(y_pred)
 
     return np.sqrt(np.mean((log_pred - log_true) ** 2))
+
+
+def map_at_k(actual: np.ndarray, predicted: np.ndarray, k: int = 3) -> float:
+    """ Computes the mean average precision at k (MAP@K), between actul and predicted values.
+    Args:
+        actual (np.ndarray): _description_
+        predicted (np.ndarray): _description_
+        k (int, optional): _description_. Defaults to 3.
+
+    Returns:
+        float: _description_
+    """
+
+
+
+    return np.mean([apk(a,p,k) for a,p in zip(actual, predicted)])
+
+
+def map3_eval(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float, bool]:
+    """
+    Custom evaluation metric for XGBoost that computes Mean Average Precision at 3 (MAP@3).
+
+    Parameters
+    ----------
+    preds : np.ndarray
+        Flattened array of predicted probabilities or scores output by the model.
+        Expected shape is (n_samples * n_classes,).
+    dtrain : xgb.DMatrix
+        The DMatrix containing the true labels.
+
+    Returns
+    -------
+    Tuple[str, float, bool]
+        A tuple with:
+        - The name of the metric ('map@3')
+        - The MAP@3 score as a float
+        - A boolean indicating whether higher values are better (True)
+    """
+    labels = dtrain.get_label().astype(int)
+    num_classes = preds.shape[0] // len(labels)
+    preds = preds.reshape(len(labels), num_classes)
+
+    top_3 = np.argsort(-preds, axis=1)[:, :3]
+    actual = [[label] for label in labels]
+
+    return 'map@3', mapk(actual, top_3.tolist(), k=3), True
+
+
+
+def mapk(actual: list[list[int]], predicted: list[list[int]], k: int = 3) -> float:
+    def apk(a, p, k):
+        if len(p) > k:
+            p = p[:k]
+        score = 0.0
+        num_hits = 0.0
+        for i, pred in enumerate(p):
+            if pred in a and pred not in p[:i]:
+                num_hits += 1.0
+                score += num_hits / (i + 1.0)
+        return score / min(len(a), k) if a else 0.0
+    return float(np.mean([apk(a, p, k) for a, p in zip(actual, predicted)]))
+
+
+def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, file_name: str,
+                          class_names: list[str], normalize: bool = True) -> None:
+    """
+    Plot a confusion matrix using matplotlib.
+
+    Args:
+        y_true (np.ndarray): True class labels.
+        y_pred (np.ndarray): Predicted class labels.
+        class_names (list[str], optional): List of class names (labels). Defaults to None.
+        normalize (bool): Whether to normalize by row (true label counts). Defaults to True.
+        title (str): Title for the plot.
+    """
+    cm = confusion_matrix(y_true, y_pred, normalize='true' if normalize else None)
+
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
+    _, ax = plt.subplots(figsize=(10, 8))
+    disp.plot(ax=ax, cmap='Blues', values_format=".2f" if normalize else "d", xticks_rotation=45)
+
+    plt.tight_layout()
+    plt.savefig(file_name, bbox_inches='tight')
+    plt.close()
