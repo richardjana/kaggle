@@ -11,9 +11,7 @@ from sklearn.model_selection import KFold, train_test_split
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk, plot_confusion_matrix  # noqa
 from kaggle_api_functions import submit_prediction
-from prepare_data import load_preprocess_data
-
-TARGET_COL = 'Fertilizer Name'
+from competition_specifics import load_preprocess_data, TARGET_COL, COMPETITION_NAME
 
 NUM_CV_SPLITS = 5
 
@@ -42,9 +40,7 @@ def make_training_plot(history: Dict[str, List[int]], metric: str,
     ax.set_ylabel(metric)
     plt.legend(loc='best')
 
-    #ax.set_yscale('log')
     plt.savefig(f"{fname}_{metric}.png", bbox_inches='tight')
-
     plt.close()
 
 
@@ -74,21 +70,16 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame, cv_index: 
 
 
 def lgb_map3_eval(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[str, float, bool]:
-    """
-    Custom LightGBM eval function to compute MAP@3.
+    """ Custom LightGBM eval function to compute MAP@3.
     Parameters:
         y_true (np.ndarray): Ground truth labels.
-        y_pred (np.ndarray): Flat array of predictions (num_samples * num_classes).
+        y_pred (np.ndarray): Array of predictions.
     Returns:
         Tuple[str, float, bool]: metric name, value, higher_is_better
     """
-    # Compute top 3 predictions
-    top_3 = np.argsort(-y_pred, axis=1)[:, :3]
+    top_3 = np.argsort(-y_pred, axis=1)[:, :3]  # Compute top 3 predictions
+    actual = [[label] for label in y_true]  # Format true labels for mapk
 
-    # Format true labels for mapk
-    actual = [[label] for label in y_true]
-
-    # Compute MAP@3
     return 'map@3', mapk(actual, top_3.tolist(), k=3), True
 
 
@@ -220,6 +211,6 @@ print(f'MAP@3 score: {map3_score:.7f}')
 # make prediction for the test data
 make_prediction(model, test, cv_index)
 
-public_score = submit_prediction('playground-series-s5e6', f"predictions_LGBM_KFold_{cv_index}.csv",
+public_score = submit_prediction(COMPETITION_NAME, f"predictions_LGBM_KFold_{cv_index}.csv",
                                  f"LGBM ({map3_score})")
 print(f'Public score: {public_score:.7f}')

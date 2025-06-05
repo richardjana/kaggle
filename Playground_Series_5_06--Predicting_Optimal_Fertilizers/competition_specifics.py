@@ -6,7 +6,8 @@ import pandas as pd
 from scipy.stats import zscore
 from sklearn.preprocessing import LabelEncoder
 
-from sklearn.model_selection import train_test_split
+TARGET_COL = 'Fertilizer Name'
+COMPETITION_NAME = 'playground-series-s5e6'
 
 def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.

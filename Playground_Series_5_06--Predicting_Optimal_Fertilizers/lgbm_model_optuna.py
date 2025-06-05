@@ -11,27 +11,20 @@ from sklearn.model_selection import KFold
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
-from prepare_data import load_preprocess_data
-
-TARGET_COL = 'Fertilizer Name'
+from competition_specifics import load_preprocess_data, TARGET_COL, COMPETITION_NAME
 
 
 def lgb_map3_eval(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[str, float, bool]:
-    """
-    Custom LightGBM eval function to compute MAP@3.
+    """ Custom LightGBM eval function to compute MAP@3.
     Parameters:
         y_true (np.ndarray): Ground truth labels.
-        y_pred (np.ndarray): Flat array of predictions (num_samples * num_classes).
+        y_pred (np.ndarray): Array of predictions.
     Returns:
         Tuple[str, float, bool]: metric name, value, higher_is_better
     """
-    # Compute top 3 predictions
-    top_3 = np.argsort(-y_pred, axis=1)[:, :3]
+    top_3 = np.argsort(-y_pred, axis=1)[:, :3]  # Compute top 3 predictions
+    actual = [[label] for label in y_true]  # Format true labels for mapk
 
-    # Format true labels for mapk
-    actual = [[label] for label in y_true]
-
-    # Compute MAP@3
     return 'map@3', mapk(actual, top_3.tolist(), k=3), True
 
 
@@ -145,6 +138,6 @@ print(f'MAP@3 score: {map3_score:.7f}')
 # make prediction for the test data
 make_prediction(model, test)
 
-public_score = submit_prediction('playground-series-s5e6', 'predictions_LGBM_optuna.csv',
+public_score = submit_prediction(COMPETITION_NAME, 'predictions_LGBM_optuna.csv',
                                  f"LGBM optuna ({map3_score})")
 print(f'Public score: {public_score:.7f}')
