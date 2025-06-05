@@ -204,57 +204,27 @@ def rmsle(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return np.sqrt(np.mean((log_pred - log_true) ** 2))
 
 
-def map_at_k(actual: np.ndarray, predicted: np.ndarray, k: int = 3) -> float:
-    """ Computes the mean average precision at k (MAP@K), between actul and predicted values.
+def mapk(actual: List[List[int]], predicted: List[List[int]], k: int = 3) -> float:
+    """ Mean Average Precision @ K (MAP@K) between actual and predicted labels.
     Args:
-        actual (np.ndarray): _description_
-        predicted (np.ndarray): _description_
-        k (int, optional): _description_. Defaults to 3.
-
+        actual (list[list[int]]): Ground truth labels.
+        predicted (list[list[int]]): Predicted labels.
+        k (int, optional): Number of evaluated predictions. Defaults to 3.
     Returns:
-        float: _description_
+        float: MAP@K value.
     """
-
-
-
-    return np.mean([apk(a,p,k) for a,p in zip(actual, predicted)])
-
-
-def map3_eval(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float, bool]:
-    """
-    Custom evaluation metric for XGBoost that computes Mean Average Precision at 3 (MAP@3).
-
-    Parameters
-    ----------
-    preds : np.ndarray
-        Flattened array of predicted probabilities or scores output by the model.
-        Expected shape is (n_samples * n_classes,).
-    dtrain : xgb.DMatrix
-        The DMatrix containing the true labels.
-
-    Returns
-    -------
-    Tuple[str, float, bool]
-        A tuple with:
-        - The name of the metric ('map@3')
-        - The MAP@3 score as a float
-        - A boolean indicating whether higher values are better (True)
-    """
-    labels = dtrain.get_label().astype(int)
-    num_classes = preds.shape[0] // len(labels)
-    preds = preds.reshape(len(labels), num_classes)
-
-    top_3 = np.argsort(-preds, axis=1)[:, :3]
-    actual = [[label] for label in labels]
-
-    return 'map@3', mapk(actual, top_3.tolist(), k=3), True
-
-
-
-def mapk(actual: list[list[int]], predicted: list[list[int]], k: int = 3) -> float:
-    def apk(a, p, k):
+    def apk(a, p, k: int) -> float:
+        """ Average Precision @ K - score for a single prediction.
+        Args:
+            a (List[int]): Actual label(s).
+            p (List[int]): Predicted labels(s).
+            k (int): Number of predicted labels.
+        Returns:
+            float: Score.
+        """
         if len(p) > k:
             p = p[:k]
+
         score = 0.0
         num_hits = 0.0
         for i, pred in enumerate(p):
@@ -262,20 +232,20 @@ def mapk(actual: list[list[int]], predicted: list[list[int]], k: int = 3) -> flo
                 num_hits += 1.0
                 score += num_hits / (i + 1.0)
         return score / min(len(a), k) if a else 0.0
+
     return float(np.mean([apk(a, p, k) for a, p in zip(actual, predicted)]))
 
 
 def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, file_name: str,
-                          class_names: list[str], normalize: bool = True) -> None:
+                          class_names: List[str], normalize: bool = True) -> None:
     """
     Plot a confusion matrix using matplotlib.
-
     Args:
         y_true (np.ndarray): True class labels.
         y_pred (np.ndarray): Predicted class labels.
+        file_name (str): File name for the saved plot.
         class_names (list[str], optional): List of class names (labels). Defaults to None.
         normalize (bool): Whether to normalize by row (true label counts). Defaults to True.
-        title (str): Title for the plot.
     """
     cm = confusion_matrix(y_true, y_pred, normalize='true' if normalize else None)
 

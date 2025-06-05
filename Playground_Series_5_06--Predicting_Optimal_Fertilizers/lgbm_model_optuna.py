@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Tuple
 import sys
 
 import joblib
@@ -93,8 +93,8 @@ def objective(trial):
         model.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric=lgb_map3_eval,
                   callbacks=[lgb.callback.early_stopping(stopping_rounds=100),
                              lgb.callback.log_evaluation(period=0)
-            ]
-        )
+                             ]
+                 )
 
         pred_val = np.asarray(model.predict_proba(X_val))
         #pred_val_labels = encoders[TARGET_COL].inverse_transform(pred_val.argmax(axis=1))
@@ -123,16 +123,14 @@ model = lgb.LGBMClassifier(**best_params)
 
 eval_results = {}
 
-model.fit(
-    X, y,
-    eval_set=[(X, y)],
-    eval_metric=lgb_map3_eval,
-    callbacks=[
-        lgb.callback.early_stopping(stopping_rounds=100),
-        lgb.callback.log_evaluation(period=50),
-        lgb.callback.record_evaluation(eval_results)
-    ]
-)
+model.fit(X, y,
+          eval_set=[(X, y)],
+          eval_metric=lgb_map3_eval,
+          callbacks=[lgb.callback.early_stopping(stopping_rounds=100),
+                     lgb.callback.log_evaluation(period=50),
+                     lgb.callback.record_evaluation(eval_results)
+                     ]
+         )
 
 joblib.dump(model, 'lgb_model.pkl')
 
@@ -147,5 +145,6 @@ print(f'MAP@3 score: {map3_score:.7f}')
 # make prediction for the test data
 make_prediction(model, test)
 
-public_score = submit_prediction('playground-series-s5e6', 'predictions_LGBM_optuna.csv', f"LGBM optuna ({map3_score})")
+public_score = submit_prediction('playground-series-s5e6', 'predictions_LGBM_optuna.csv',
+                                 f"LGBM optuna ({map3_score})")
 print(f'Public score: {public_score:.7f}')
