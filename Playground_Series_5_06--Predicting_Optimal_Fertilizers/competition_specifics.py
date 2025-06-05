@@ -50,7 +50,7 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame, frame
                             ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, LabelEncoder]]:
     categorical_cols = ['Soil Type', 'Crop Type', 'Fertilizer Name']
 
-    if framework == 'LGBM':
+    if framework in ['LGBM', 'XGB']:
         label_encoders = {}
         for col in categorical_cols:
             le = LabelEncoder()
@@ -60,13 +60,11 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame, frame
             except:
                 pass
             label_encoders[col] = le
-        
+
         return train_df, test_df, label_encoders
 
-    #if framework == 'XGB':
-
-    #if framework == 'TF':
-
+    else:
+        return train_df, test_df, {}
 
 def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Add columns to DataFrame, possibly inspired by other peoples solutions.
@@ -143,6 +141,8 @@ def load_preprocess_data(train_csv: str, test_csv: str, target_col: str, framewo
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
     """
     train = clean_data(pd.read_csv(train_csv))
+    #from sklearn.model_selection import train_test_split
+    #train, rest = train_test_split(train, test_size=0.9)
     test = clean_data(pd.read_csv(test_csv))
 
     train, test, encoders = encode_category_columns(train, test, framework)
