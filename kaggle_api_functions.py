@@ -16,7 +16,7 @@ def get_latest_submission(competition: str) -> pd.Series:
     output = result.stdout
     df = pd.read_csv(StringIO(output), sep=r'\s{2,}', engine='python')
 
-    return df.iloc[0]
+    return df.iloc[1]
 
 
 def submit_prediction(competition: str, csv_file: str, message: str, timeout: float = 300,
