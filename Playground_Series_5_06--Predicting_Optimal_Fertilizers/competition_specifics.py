@@ -4,7 +4,7 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -147,12 +147,11 @@ def target_encode_multi_class_stratified(train_df: pd.DataFrame, test_df: pd.Dat
     # encode train_df, stratified k-fold
     train_encoded = pd.DataFrame(index=train_df.index, columns=encoded_cols)
 
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
-    for train_idx, val_idx in skf.split(train_df, train_df[target_col]):
-        fold_train = train_df.iloc[train_idx]
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+    for _, val_idx in kf.split(train_df):
         fold_val = train_df.iloc[val_idx]
 
-        encoding_table = compute_target_encoding(fold_train, encode_col, target_col)
+        encoding_table = compute_target_encoding(fold_val, encode_col, target_col)
         fold_val_encoded = apply_target_encoding(fold_val, encode_col, encoding_table)
         train_encoded.iloc[val_idx] = fold_val_encoded.values
 
