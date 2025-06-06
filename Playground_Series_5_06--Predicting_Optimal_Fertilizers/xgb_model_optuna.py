@@ -45,7 +45,7 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
     joined_top3 = [' '.join(labels) for labels in top_3_labels]
 
     submit_df[TARGET_COL] = joined_top3
-    submit_df.to_csv('predictions_LGBM_optuna.csv',
+    submit_df.to_csv('predictions_XGB_optuna.csv',
                      columns=['id', TARGET_COL], index=False)
 
 
