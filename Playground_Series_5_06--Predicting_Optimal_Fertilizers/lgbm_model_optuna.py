@@ -139,5 +139,5 @@ print(f'MAP@3 score: {map3_score:.7f}')
 make_prediction(model, test)
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_LGBM_optuna.csv',
-                                 f"LGBM optuna ({map3_score})")
+                                 f"LGBM optuna ({study.best_value})")
 print(f'Public score: {public_score:.7f}')
