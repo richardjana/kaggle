@@ -108,6 +108,37 @@ def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_derived_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """ Engineered features, as recommended by Komil Parmar.
+    Args:
+        df (pd.DataFrame): A DataFrame ...
+    Returns:
+        pd.DataFrame: ... with the added columns.
+    """
+    def is_temp_suitable(row: pd.Series) -> int:
+        crop_temp_map = {'Barley': (15, 25),
+                         'Cotton': (25, 35),
+                         'Ground Nuts': (25, 32),
+                         'Maize': (25, 32),
+                         'Millets': (25, 35),
+                         'Oil seeds': (20, 30),
+                         'Paddy': (25, 35),
+                         'Pulses': (20, 30),
+                         'Sugarcane': (26, 35),
+                         'Tobacco': (20, 30),
+                         'Wheat': (20, 30)
+                         }
+
+        min_temp, max_temp = crop_temp_map[row['Crop Type']]
+
+        return 1 if min_temp <= row['Temperature'] <= max_temp else 0
+
+    df['env_max'] = df[['Temperature', 'Humidity', 'Moisture']].max(axis=1)
+    df['temp_suitability'] = df.apply(is_temp_suitable, axis=1)
+
+    return df
+
+
 def load_preprocess_data(framework: str,
                          ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, LabelEncoder]]:
     """ Prepare training and test data into pandas DataFrames: added columns, transformations, etc.
@@ -119,8 +150,6 @@ def load_preprocess_data(framework: str,
     train = clean_data(pd.read_csv('train.csv'))
     original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
     train = pd.concat([train, original], ignore_index=True)
-    #from sklearn.model_selection import train_test_split
-    #train, _ = train_test_split(train, test_size=0.9)
     test = clean_data(pd.read_csv('test.csv'))
 
     train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
@@ -130,10 +159,10 @@ def load_preprocess_data(framework: str,
 
     train, test, encoders = encode_category_columns(train, test, framework)
 
-    #train = generate_extra_columns(train, target_col)
-    #test = generate_extra_columns(test, target_col)
+    #train = add_nutrient_chemistry(train)
+    #test = add_nutrient_chemistry(test)
 
-    #train = add_intuitive_columns(train)
-    #test = add_intuitive_columns(test)
+    #train = add_derived_cols(train)
+    #test = add_derived_cols(test)
 
     return train, test, encoders
