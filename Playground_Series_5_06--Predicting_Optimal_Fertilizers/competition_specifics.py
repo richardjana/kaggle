@@ -20,7 +20,10 @@ def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Cleaned DataFrame.
     """
-    pd_df.drop('id', axis=1, inplace=True)
+    try:
+        pd_df.drop('id', axis=1, inplace=True)
+    except KeyError:
+        pass
     pd_df.rename(columns={'Temparature': 'Temperature'}, inplace=True)
 
     return pd_df
