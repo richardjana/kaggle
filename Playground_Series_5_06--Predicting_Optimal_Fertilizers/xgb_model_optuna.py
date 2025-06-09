@@ -50,7 +50,7 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-dataframe, test, encoders = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, 'XGB')
+dataframe, test, encoders = load_preprocess_data('XGB')
 
 # Split into train/test sets
 y = dataframe.pop(TARGET_COL).to_numpy()

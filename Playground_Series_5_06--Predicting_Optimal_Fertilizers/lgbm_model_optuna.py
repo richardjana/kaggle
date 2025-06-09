@@ -51,7 +51,7 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-dataframe, test, encoders = load_preprocess_data('train.csv', 'test.csv', TARGET_COL, 'LGBM')
+dataframe, test, encoders = load_preprocess_data('LGBM')
 
 # Split into train/test sets
 y = dataframe.pop(TARGET_COL).to_numpy()

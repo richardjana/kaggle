@@ -225,20 +225,20 @@ def generate_extra_columns(pd_df: pd.DataFrame, target_col: str) -> pd.DataFrame
     return pd_df
 
 
-def load_preprocess_data(train_csv: str, test_csv: str, target_col: str, framework: str,
+def load_preprocess_data(framework: str,
                          ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, LabelEncoder]]:
     """ Prepare training and test data into pandas DataFrames: added columns, transformations, etc.
     Args:
-        train_csv (str): Name of the training file.
-        test_csv (str): Name of the test file.
-        target_col (str): Name of the target column.
+        framework (str): Name of the used framework, to encode categories correctly.
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
     """
-    train = clean_data(pd.read_csv(train_csv))
+    train = clean_data(pd.read_csv('train.csv'))
+    original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
+    train = pd.concat([train, original], ignore_index=True)
     #from sklearn.model_selection import train_test_split
     #train, _ = train_test_split(train, test_size=0.9)
-    test = clean_data(pd.read_csv(test_csv))
+    test = clean_data(pd.read_csv('test.csv'))
 
     train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
     train.drop(columns=['Soil Type', 'Crop Type'])
