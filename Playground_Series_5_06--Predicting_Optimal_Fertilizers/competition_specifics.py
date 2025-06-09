@@ -58,10 +58,13 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame, frame
             try:
                 le = LabelEncoder()
                 train_df[col] = le.fit_transform(train_df[col])
-                test_df[col] = le.transform(test_df[col])
+                label_encoders[col] = le
             except:
                 continue
-            label_encoders[col] = le
+            try:
+                test_df[col] = le.transform(test_df[col])
+            except:
+                pass
 
         return train_df, test_df, label_encoders
 
@@ -69,96 +72,27 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame, frame
         return train_df, test_df, {}
 
 
-def target_encode_multi_class(train_df: pd.DataFrame, test_df: pd.DataFrame, encode_col: str,
-                              target_col: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def target_encode_multi_class(df: pd.DataFrame, df_average: pd.DataFrame, encode_col: str,
+                              target_col: str) -> pd.DataFrame:
     """ Target encode a column for multi-class classification problem. Creates N-1 new columns
         with the probabilities for the target labels and removes 'encode_col'.
     Args:
-        train_df (pd.DataFrame): Training data.
-        test_df (pd.DataFrame): Test data.
-        encode_col (str): Column to encode.
-        target_col (str): Target column used to encode.
+        df (pd.DataFrame): DataFrame to encode.
+        df_average (pd.DataFrame): Data used to calculate the encoding values. (In CV, the same
+            as df, for test the full training df.)
+        encode_col (str): Name of the column to encode.
+        target_col (str): Name of the target column.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: The encoded training and test DataFrames.
+        pd.DataFrame: DataFrame with the new columns added and the encoded column dropped.
     """
-    counts_df = train_df.groupby(encode_col)[target_col].value_counts().unstack(fill_value=0)
-    counts_df = counts_df.div(counts_df.sum(axis=1), axis=0)
+    # compute target encoding
+    counts = df_average.groupby(encode_col)[target_col].value_counts().unstack(fill_value=0)
+    encoding_table = counts.div(counts.sum(axis=1), axis=0)
 
-    train_df = pd.merge(train_df, counts_df, on=encode_col, how='left').fillna(0)
-    train_df.drop(columns=[encode_col, train_df[TARGET_COL].iloc[0]])
-    test_df = pd.merge(train_df, counts_df, on=encode_col, how='left').fillna(0)
-    test_df.drop(columns=[encode_col, train_df[TARGET_COL].iloc[0]])
+    # apply encoding
+    df_encoded = df.merge(encoding_table, on=encode_col, how='left').fillna(0) # [[encode_col]]
 
-    return train_df, test_df
-
-
-def target_encode_multi_class_stratified(train_df: pd.DataFrame, test_df: pd.DataFrame,
-                                         encode_col: str, target_col: str, n_folds: int = 5
-                                         ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """ Target encode a column for multi-class classification problem. Creates N-1 new columns
-        with the probabilities for the target labels and removes 'encode_col'. The test set is
-        encoded using the full training set. The training set is encoded using a stratified
-        k-fold approach.
-    Args:
-        train_df (pd.DataFrame): Training data.
-        test_df (pd.DataFrame): Test data.
-        encode_col (str): Column to encode.
-        target_col (str): Target column used to encode.
-        n_folds (int, optional): Number of folds for encoding the training data. Defaults to 5.
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: The encoded training and test DataFrames.
-    """
-    def compute_target_encoding(df: pd.DataFrame, encode_col: str, target_col: str) -> pd.DataFrame:
-        """ Returns a DataFrame with the normalized class proportions for each category in
-            'encode_col'.
-        Args:
-            df (pd.DataFrame): Data to encode.
-            encode_col (str): Column to encode.
-            target_col (str): Target column used to encode.
-        Returns:
-            pd.DataFrame: DataFrame with the encoding values.
-        """
-        counts = df.groupby(encode_col)[target_col].value_counts().unstack(fill_value=0)
-        proportions = counts.div(counts.sum(axis=1), axis=0)
-        return proportions
-
-    def apply_target_encoding(df: pd.DataFrame, encode_col: str, encoding_table: pd.DataFrame
-                              ) -> pd.DataFrame:
-        """ Apply precomputed encoding_table to DataFrame and return a new DataFrame.
-        Args:
-            df (pd.DataFrame): Data to encode.
-            encode_col (str): Column to encode (join on).
-            encoding_table (pd.DataFrame): Encoding values to join.
-        Returns:
-            pd.DataFrame: Encoded DataFrame, without the 'encode_col'.
-        """
-        encoded = df[[encode_col]].merge(encoding_table, on=encode_col, how='left').fillna(0)
-
-        return encoded.drop(columns=[encode_col])
-
-    encoded_cols = train_df[target_col].unique()
-
-    # encode test_df with full train_df
-    encoding_table = compute_target_encoding(train_df, encode_col, target_col)
-    test_encoded = apply_target_encoding(test_df, encode_col, encoding_table)
-    test_df[encoded_cols] = test_encoded.astype(float)
-    test_df = test_df.drop(columns=[encode_col, encoded_cols[0]])
-
-    # encode train_df, stratified k-fold
-    train_encoded = pd.DataFrame(index=train_df.index, columns=encoded_cols)
-
-    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
-    for _, val_idx in kf.split(train_df):
-        fold_val = train_df.iloc[val_idx]
-
-        encoding_table = compute_target_encoding(fold_val, encode_col, target_col)
-        fold_val_encoded = apply_target_encoding(fold_val, encode_col, encoding_table)
-        train_encoded.iloc[val_idx] = fold_val_encoded.values
-
-    train_df[encoded_cols] = train_encoded.astype(float)
-    train_df = train_df.drop(columns=[encode_col, encoded_cols[0]])
-
-    return train_df, test_df
+    return df_encoded.drop(columns=[encode_col])
 
 
 def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
@@ -187,11 +121,9 @@ def load_preprocess_data(framework: str,
     test = clean_data(pd.read_csv('test.csv'))
 
     train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
-    train.drop(columns=['Soil Type', 'Crop Type'])
+    train.drop(columns=['Soil Type', 'Crop Type'], inplace=True)  # optional
     test['sc-interaction'] = test['Soil Type'].str.cat(test['Crop Type'], sep=' ')
-    test.drop(columns=['Soil Type', 'Crop Type'])
-    #train, test = target_encode_multi_class(train, test, 'sc-interaction', TARGET_COL)
-    train, test = target_encode_multi_class_stratified(train, test, 'sc-interaction', TARGET_COL)
+    test.drop(columns=['Soil Type', 'Crop Type'], inplace=True)  # optional
 
     train, test, encoders = encode_category_columns(train, test, framework)
 

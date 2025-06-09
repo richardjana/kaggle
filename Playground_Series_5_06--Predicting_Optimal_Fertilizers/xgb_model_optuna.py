@@ -10,7 +10,8 @@ import xgboost as xgb
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
-from competition_specifics import load_preprocess_data, TARGET_COL, COMPETITION_NAME
+from competition_specifics import TARGET_COL, COMPETITION_NAME
+from competition_specifics import load_preprocess_data, target_encode_multi_class
 
 
 def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -50,12 +51,8 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-dataframe, test, encoders = load_preprocess_data('XGB')
-
-# Split into train/test sets
-y = dataframe.pop(TARGET_COL).to_numpy()
-X = dataframe.to_numpy()
-categorical_features = [dataframe.columns.get_loc(c) for c in ['Soil Type', 'Crop Type']]
+train, test, encoders = load_preprocess_data('XGB')
+NUM_CLASSES = train[TARGET_COL].unique()
 
 best_iterations = []
 
@@ -66,7 +63,7 @@ def objective(trial):
     param = {
         "objective": "multi:softprob",
         "eval_metric": xgb_feval_map3,
-        "num_class": len(np.unique(y)),
+        "num_class": NUM_CLASSES,
         "tree_method": "hist",
         "verbosity": 0,
         "eta": trial.suggest_loguniform("learning_rate", 1e-3, 0.1),
@@ -84,21 +81,28 @@ def objective(trial):
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     mapa3_scores = []
 
-    for train_idx, val_idx in kf.split(X):
-        X_train, X_val = X[train_idx], X[val_idx]
-        y_train, y_val = y[train_idx], y[val_idx]
+    for train_idx, val_idx in kf.split(train):
+        df_train_fold, df_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
+
+        X_train_fold = target_encode_multi_class(df_train_fold, df_train_fold,
+                                                 'sc-interaction', TARGET_COL)
+        X_val_fold = target_encode_multi_class(df_val_fold, df_train_fold,
+                                               'sc-interaction', TARGET_COL)
+
+        y_train_fold = df_train_fold.pop(TARGET_COL)
+        y_val_fold = df_val_fold.pop(TARGET_COL)
 
         model = xgb.XGBClassifier(**param)
 
         model.fit(
-            X_train, y_train,
-            eval_set=[(X_val, y_val)],
+            X_train_fold, y_train_fold,
+            eval_set=[(X_val_fold, y_val_fold)],
             verbose=False,
         )
 
-        pred_val = model.predict_proba(X_val)
+        pred_val = model.predict_proba(X_val_fold)
         top_3 = np.argsort(-pred_val, axis=1)[:, :3]
-        actual = [[int(label)] for label in y_val]
+        actual = [[int(label)] for label in y_val_fold]
         mapa3_scores.append(mapk(actual, top_3.tolist(), k=3))
 
         best_iteration_folds.append(model.get_booster().best_iteration)
@@ -109,7 +113,7 @@ def objective(trial):
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=1000, timeout=60*60*11)
+study.optimize(objective, n_trials=10_000, timeout=60*60*11)
 
 best_params = study.best_params
 best_params.pop('n_estimators', best_iterations[study.best_trial.number])
@@ -123,21 +127,13 @@ for key, value in best_params.items():
     print(f"    {key}: {value}")
 
 # Train final model with best parameters
+test = target_encode_multi_class(test, train, 'sc-interaction', TARGET_COL)
+train = target_encode_multi_class(train, train, 'sc-interaction', TARGET_COL)
+y = train.pop(TARGET_COL)
+
 model = xgb.XGBClassifier(**best_params, use_label_encoder=False)
-
-eval_results = {}
-
-model.fit(X, y)
-
+model.fit(train, y)
 joblib.dump(model, 'xgb_model.pkl')
-
-# Evaluate
-pred_train = np.asarray(model.predict_proba(X))
-top_3 = np.argsort(-pred_train, axis=1)[:, :3]
-actual = [[int(label)] for label in y]
-
-map3_score = mapk(actual, top_3.tolist(), k=3)
-print(f'MAP@3 score: {map3_score:.7f}')
 
 # make prediction for the test data
 make_prediction(model, test)

@@ -11,7 +11,8 @@ from sklearn.model_selection import KFold
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
-from competition_specifics import load_preprocess_data, TARGET_COL, COMPETITION_NAME
+from competition_specifics import TARGET_COL, COMPETITION_NAME
+from competition_specifics import load_preprocess_data, target_encode_multi_class
 
 
 def lgb_map3_eval(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[str, float, bool]:
@@ -51,15 +52,14 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-dataframe, test, encoders = load_preprocess_data('LGBM')
+train, test, encoders = load_preprocess_data('LGBM')
 
-# Split into train/test sets
-y = dataframe.pop(TARGET_COL).to_numpy()
-X = dataframe.to_numpy()
-categorical_features = [dataframe.columns.get_loc(c) for c in ['Soil Type', 'Crop Type']]
+best_iterations = []
 
 # Define objective function for Optuna
 def objective(trial):
+    best_iteration_folds = []
+
     param = {
         'objective': 'multiclass',
         'verbosity': -1,
@@ -78,62 +78,60 @@ def objective(trial):
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     mapa3_scores = []
 
-    for train_idx, val_idx in kf.split(X):
-        X_train, X_val = X[train_idx], X[val_idx]
-        y_train, y_val = y[train_idx], y[val_idx]
+    for train_idx, val_idx in kf.split(train):
+        df_train_fold, df_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
+
+        X_train_fold = target_encode_multi_class(df_train_fold, df_train_fold,
+                                                 'sc-interaction', TARGET_COL)
+        X_val_fold = target_encode_multi_class(df_val_fold, df_train_fold,
+                                               'sc-interaction', TARGET_COL)
+
+        y_train_fold = df_train_fold.pop(TARGET_COL)
+        y_val_fold = df_val_fold.pop(TARGET_COL)
 
         model = lgb.LGBMClassifier(**param)
-        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric=lgb_map3_eval,
+        model.fit(X_train_fold, y_train_fold,
+                  eval_set=[(X_val_fold, y_val_fold)],
+                  eval_metric=lgb_map3_eval,
                   callbacks=[lgb.callback.early_stopping(stopping_rounds=100),
                              lgb.callback.log_evaluation(period=0)
                              ]
                  )
 
-        pred_val = np.asarray(model.predict_proba(X_val))
-        #pred_val_labels = encoders[TARGET_COL].inverse_transform(pred_val.argmax(axis=1))
+        pred_val = np.asarray(model.predict_proba(X_val_fold))
 
         top_3 = np.argsort(-pred_val, axis=1)[:, :3]
-        actual = [[int(label)] for label in y_val]
+        actual = [[int(label)] for label in y_val_fold]
         mapa3_scores.append(mapk(actual, top_3.tolist(), k=3))
+
+        best_iteration_folds.append(model.best_iteration_)
+    
+    best_iterations.append(int(np.mean(best_iteration_folds)))
 
     return np.mean(mapa3_scores)
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=1000, timeout=60*60*11)
+study.optimize(objective, n_trials=10_000, timeout=60*60*11)
+
+best_params = study.best_params
+best_params.pop('n_estimators', best_iterations[study.best_trial.number])
 
 # Print best trial
 print("Best trial:")
 print(f"  MAP@3: {study.best_value}")
 print("  Best hyperparameters:")
-for key, value in study.best_params.items():
+for key, value in best_params.items():
     print(f"    {key}: {value}")
 
 # Train final model with best parameters
-best_params = study.best_params
+test = target_encode_multi_class(test, train, 'sc-interaction', TARGET_COL)
+train = target_encode_multi_class(train, train, 'sc-interaction', TARGET_COL)
+y = train.pop(TARGET_COL)
 
 model = lgb.LGBMClassifier(**best_params)
-
-eval_results = {}
-
-model.fit(X, y,
-          eval_set=[(X, y)],
-          eval_metric=lgb_map3_eval,
-          callbacks=[lgb.callback.early_stopping(stopping_rounds=100),
-                     lgb.callback.log_evaluation(period=50),
-                     lgb.callback.record_evaluation(eval_results)
-                     ]
-         )
-
+model.fit(train, y)
 joblib.dump(model, 'lgb_model.pkl')
-
-# Evaluate
-pred_train = np.asarray(model.predict_proba(X))
-top_3 = np.argsort(-pred_train, axis=1)[:, :3]
-actual = [[int(label)] for label in y]
-
-map3_score = mapk(actual, top_3.tolist(), k=3)
-print(f'MAP@3 score: {map3_score:.7f}')
 
 # make prediction for the test data
 make_prediction(model, test)
