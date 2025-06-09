@@ -49,7 +49,7 @@ def submit_prediction(competition: str, csv_file: str, message: str, timeout: fl
     while time.time() - start < timeout:
         submission = get_latest_submission(competition)
         status = submission['status'].lower()
-        if status == 'complete':
+        if status == 'submissionstatus.complete':
             return submission['publicScore']
 
         if status == 'error':
