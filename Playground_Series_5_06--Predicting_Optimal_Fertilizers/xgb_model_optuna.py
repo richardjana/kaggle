@@ -31,7 +31,7 @@ def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
-        model (lgb.LGBMRegressor): Model used for the prediction.
+        model (xgb.XGBClassifier): Model used for the prediction.
         test_df (pd.DataFrame): DataFrame with the test data, pre-processed.
     """
     submit_df = pd.read_csv('sample_submission.csv')
