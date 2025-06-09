@@ -161,68 +161,14 @@ def target_encode_multi_class_stratified(train_df: pd.DataFrame, test_df: pd.Dat
     return train_df, test_df
 
 
-def add_intuitive_columns(pd_df: pd.DataFrame) -> pd.DataFrame:
-    """ Add columns to DataFrame, possibly inspired by other peoples solutions.
-    Args:
-        pd_df (pd.DataFrame): DataFrame to which to add new columns.
-    Returns:
-        pd.DataFrame: The DataFrame, with additional columns.
-    """
-    pd_df['BMI'] = pd_df['Weight'] / (pd_df['Height']**2) * 10000
-    pd_df['BMI_Class'] = pd.cut(pd_df['BMI'],
-                                bins=[0, 16.5, 18.5, 25, 30, 35, 40, 100],
-                                labels=[0, 1, 2, 3, 4, 5, 6]).astype(int)
-    pd_df['BMI_zscore'] = pd_df.groupby('Sex')['BMI'].transform(zscore)
+def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
+    #N/P, N/K, P/K, plus total N+P+K
+    df['N/P'] = df['Nitrogen'] / df['Phosphorous']
+    df['N/K'] = df['Nitrogen'] / df['Potassium']
+    df['P/K'] = df['Phosphorous'] / df['Potassium']
+    df['N+P+K'] = df['Nitrogen'] + df['Phosphorous'] + df['Potassium']
 
-    BMR_male = 66.47 + pd_df['Weight']*13.75 + pd_df['Height']*5.003 - pd_df['Age']*6.755
-    BMR_female = 655.1 + pd_df['Weight']*9.563 + pd_df['Height']*1.85 - pd_df['Age']*4.676
-    pd_df['BMR'] = np.where(pd_df['Sex'] == 'male', BMR_male, BMR_female)
-    pd_df['BMR_zscore'] = pd_df.groupby('Sex')['BMR'].transform(zscore)
-
-    pd_df['Heart_rate_Zone'] = pd.cut(pd_df['Heart_Rate'], bins=[0, 90, 110, 200],
-                                      labels=[0, 1, 2]).astype(int)
-    pd_df['Heart_Rate_Zone_2'] = pd.cut(pd_df['Heart_Rate']/(220-pd_df['Age'])*100,
-                                        bins=[0, 50, 65, 80, 85, 92, 100],
-                                        labels=[0, 1, 2, 3, 4, 5]).astype(int)
-
-    pd_df['Age_Group'] = pd.cut(pd_df['Age'], bins=[0, 20, 35, 50, 100],
-                                labels=[0, 1, 2, 3]).astype(int)
-
-    cb_male = (0.6309*pd_df['Heart_Rate'] + 0.1988*pd_df['Weight']
-               + 0.2017*pd_df['Age'] - 55.0969) / 4.184 * pd_df['Duration']
-    cb_female = (0.4472*pd_df['Heart_Rate'] - 0.1263*pd_df['Weight']
-                 + 0.0740*pd_df['Age'] - 20.4022) / 4.184 * pd_df['Duration']
-    pd_df['Calories_Burned'] = np.where(pd_df['Sex'] == 'male', cb_male, cb_female)
-
-    for col in ['Height', 'Weight', 'Heart_Rate']:
-        pd_df[f"{col}_zscore"] = pd_df.groupby('Sex')[col].transform(zscore)
-
-    return pd_df
-
-
-def generate_extra_columns(pd_df: pd.DataFrame, target_col: str) -> pd.DataFrame:
-    """ Generate extra feature columns from the original data, by combining columns.
-    Args:
-        pd_df (pd.DataFrame): The original data.
-    Returns:
-        pd.DataFrame: DataFrame with new columns added.
-    """
-    combine_cols = [col for col in pd_df.keys() if col != target_col]
-
-    new_cols = {}
-
-    for n in [2, 3, 4]:
-        for cols in combinations(combine_cols, n):
-            col_name = '*'.join(cols)
-            new_cols[col_name] = pd_df[list(cols)].prod(axis=1)
-
-    for cols in combinations(combine_cols, 2):
-        col_name = '/'.join(cols)
-        new_cols[col_name] = pd_df[cols[0]] / pd_df[cols[1]]
-
-    pd_df = pd.concat([pd_df, pd.DataFrame(new_cols, index=pd_df.index)], axis=1)
-
-    return pd_df
+    return df
 
 
 def load_preprocess_data(framework: str,
@@ -256,10 +202,3 @@ def load_preprocess_data(framework: str,
     #test = add_intuitive_columns(test)
 
     return train, test, encoders
-
-
-
-"""
-Nutrient chemistry
-    Ratios: N/P, N/K, P/K, plus total N+P+K. 
-"""
