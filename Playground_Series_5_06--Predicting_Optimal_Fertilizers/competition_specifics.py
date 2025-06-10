@@ -4,8 +4,7 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 
 TARGET_COL = 'Fertilizer Name'
@@ -73,29 +72,6 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame, frame
 
     else:
         return train_df, test_df, {}
-
-
-def target_encode_multi_class(df: pd.DataFrame, df_average: pd.DataFrame, encode_col: str,
-                              target_col: str) -> pd.DataFrame:
-    """ Target encode a column for multi-class classification problem. Creates N-1 new columns
-        with the probabilities for the target labels and removes 'encode_col'.
-    Args:
-        df (pd.DataFrame): DataFrame to encode.
-        df_average (pd.DataFrame): Data used to calculate the encoding values. (In CV, the same
-            as df, for test the full training df.)
-        encode_col (str): Name of the column to encode.
-        target_col (str): Name of the target column.
-    Returns:
-        pd.DataFrame: DataFrame with the new columns added and the encoded column dropped.
-    """
-    # compute target encoding
-    counts = df_average.groupby(encode_col)[target_col].value_counts().unstack(fill_value=0)
-    encoding_table = counts.div(counts.sum(axis=1), axis=0)
-
-    # apply encoding
-    df_encoded = df.merge(encoding_table, on=encode_col, how='left').fillna(0) # [[encode_col]]
-
-    return df_encoded.drop(columns=[encode_col])
 
 
 def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:

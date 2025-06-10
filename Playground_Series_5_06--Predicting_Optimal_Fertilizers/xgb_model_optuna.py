@@ -4,14 +4,15 @@ import joblib
 import numpy as np
 import optuna
 import pandas as pd
+from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import KFold
+from sklearn.preprocessing import TargetEncoder
 import xgboost as xgb
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
-from competition_specifics import TARGET_COL, COMPETITION_NAME
-from competition_specifics import load_preprocess_data, target_encode_multi_class
+from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 
 
 def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -66,13 +67,13 @@ def objective(trial):
         "num_class": NUM_CLASSES,
         "tree_method": "hist",
         "verbosity": 0,
-        "eta": trial.suggest_loguniform("learning_rate", 1e-3, 0.1),
+        "eta": trial.suggest_float("learning_rate", 1e-3, 0.1, log=True),
         "max_depth": trial.suggest_int("max_depth", 3, 15),
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 100),
         "subsample": trial.suggest_float("subsample", 0.5, 1.0),
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
-        "reg_alpha": trial.suggest_loguniform("reg_alpha", 1e-3, 10.0),
-        "reg_lambda": trial.suggest_loguniform("reg_lambda", 1e-3, 10.0),
+        "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
+        "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
         "n_estimators": 10000,
         "use_label_encoder": False,
         "early_stopping_rounds": 100
@@ -84,10 +85,14 @@ def objective(trial):
     for train_idx, val_idx in kf.split(train):
         df_train_fold, df_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
-        X_train_fold = target_encode_multi_class(df_train_fold, df_train_fold,
-                                                 'sc-interaction', TARGET_COL)
-        X_val_fold = target_encode_multi_class(df_val_fold, df_train_fold,
-                                               'sc-interaction', TARGET_COL)
+        te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
+        preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
+                                         remainder='passthrough',
+                                         verbose_feature_names_out=False)
+        preprocessor.set_output(transform='pandas')
+
+        X_train_fold = preprocessor.fit_transform(df_train_fold, df_train_fold[TARGET_COL])
+        X_val_fold = preprocessor.transform(df_val_fold)
 
         y_train_fold = df_train_fold.pop(TARGET_COL)
         y_val_fold = df_val_fold.pop(TARGET_COL)
@@ -127,9 +132,15 @@ for key, value in best_params.items():
     print(f"    {key}: {value}")
 
 # Train final model with best parameters
-test = target_encode_multi_class(test, train, 'sc-interaction', TARGET_COL)
-train = target_encode_multi_class(train, train, 'sc-interaction', TARGET_COL)
+te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
+preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
+                                 remainder='passthrough',
+                                 verbose_feature_names_out=False)
+preprocessor.set_output(transform='pandas')
+
 y = train.pop(TARGET_COL)
+train = preprocessor.fit_transform(train, y)
+test = preprocessor.transform(test)
 
 model = xgb.XGBClassifier(**best_params, use_label_encoder=False)
 model.fit(train, y)
@@ -140,4 +151,4 @@ make_prediction(model, test)
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
                                  f"XGB optuna ({study.best_value})")
-print(f"Public score: {public_score:.7f}")
+print(f"Public score: {public_score}")
