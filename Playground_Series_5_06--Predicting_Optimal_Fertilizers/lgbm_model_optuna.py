@@ -137,7 +137,7 @@ preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
 preprocessor.set_output(transform='pandas')
 
 y = train.pop(TARGET_COL)
-train = preprocessor.fit_transform(train, train[TARGET_COL])
+train = preprocessor.fit_transform(train, y)
 test = preprocessor.transform(test)
 
 model = lgb.LGBMClassifier(**best_params)
