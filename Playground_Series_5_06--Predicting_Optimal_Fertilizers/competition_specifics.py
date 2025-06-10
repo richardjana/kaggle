@@ -109,7 +109,11 @@ def add_derived_cols(df: pd.DataFrame) -> pd.DataFrame:
 
         return 1 if min_temp <= row['Temperature'] <= max_temp else 0
 
-    df['env_max'] = df[['Temperature', 'Humidity', 'Moisture']].max(axis=1)
+    scaler = MinMaxScaler()
+    env_cols = ['Temperature', 'Humidity', 'Moisture']
+    df[env_cols] = scaler.fit_transform(df[env_cols])
+
+    df['env_max'] = df[env_cols].max(axis=1)
     df['temp_suitability'] = df.apply(is_temp_suitable, axis=1)
 
     return df
