@@ -63,7 +63,7 @@ def objective(trial):
 
     param = {
         "objective": "multi:softprob",
-        "eval_metric": xgb_feval_map3,
+        "eval_metric": 'mlogloss',
         "num_class": NUM_CLASSES,
         "tree_method": "hist",
         "verbosity": 0,

@@ -97,7 +97,7 @@ def objective(trial):
         model = lgb.LGBMClassifier(**param)
         model.fit(X_train_fold, y_train_fold,
                   eval_set=[(X_val_fold, y_val_fold)],
-                  eval_metric=lgb_map3_eval,
+                  eval_metric='multi_logloss',
                   callbacks=[lgb.callback.early_stopping(stopping_rounds=100),
                              lgb.callback.log_evaluation(period=0)
                              ]
