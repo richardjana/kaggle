@@ -41,7 +41,7 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
     top_3_indices = np.argsort(-pred_proba, axis=1)[:, :3]
 
     top_3_labels = np.array([
-        encoders[TARGET_COL].inverse_transform(sample_top3)
+        encoder.inverse_transform(sample_top3)
         for sample_top3 in top_3_indices
     ])
 
@@ -53,7 +53,7 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train, test, encoders = load_preprocess_data('LGBM')
+train, test, encoder = load_preprocess_data()
 
 best_iterations = []
 
@@ -80,19 +80,19 @@ def objective(trial):
     mapa3_scores = []
 
     for train_idx, val_idx in kf.split(train):
-        df_train_fold, df_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
+        X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
-        te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
-        preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
-                                         remainder='passthrough',
-                                         verbose_feature_names_out=False)
-        preprocessor.set_output(transform='pandas')
+        y_train_fold = X_train_fold.pop(TARGET_COL)
+        y_val_fold = X_val_fold.pop(TARGET_COL)
 
-        X_train_fold = preprocessor.fit_transform(df_train_fold, df_train_fold[TARGET_COL])
-        X_val_fold = preprocessor.transform(df_val_fold)
+        #te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
+        #preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
+        #                                 remainder='passthrough',
+        #                                 verbose_feature_names_out=False)
+        #preprocessor.set_output(transform='pandas')
 
-        y_train_fold = df_train_fold.pop(TARGET_COL)
-        y_val_fold = df_val_fold.pop(TARGET_COL)
+        #X_train_fold = preprocessor.fit_transform(X_train_fold, y_train_fold)
+        #X_val_fold = preprocessor.transform(X_val_fold)
 
         model = lgb.LGBMClassifier(**param)
         model.fit(X_train_fold, y_train_fold,
