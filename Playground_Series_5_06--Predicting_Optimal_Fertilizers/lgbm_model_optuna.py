@@ -130,15 +130,15 @@ for key, value in best_params.items():
     print(f"    {key}: {value}")
 
 # Train final model with best parameters
-te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
-preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
-                                 remainder='passthrough',
-                                 verbose_feature_names_out=False)
-preprocessor.set_output(transform='pandas')
+#te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
+#preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
+#                                 remainder='passthrough',
+#                                 verbose_feature_names_out=False)
+#preprocessor.set_output(transform='pandas')
 
 y = train.pop(TARGET_COL)
-train = preprocessor.fit_transform(train, y)
-test = preprocessor.transform(test)
+#train = preprocessor.fit_transform(train, y)
+#test = preprocessor.transform(test)
 
 model = lgb.LGBMClassifier(**best_params)
 model.fit(train, y)
