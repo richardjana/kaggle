@@ -123,8 +123,9 @@ best_params = study.best_params
 best_params.pop('n_estimators', best_iterations[study.best_trial.number])
 
 # Print best trial
-print(f"Best trial: {study.best_trial.number}")
+print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
 print(f"  MAP@3: {study.best_value}")
+print(f"  worst MAP@3: {min(trial.value for trial in study.trials if trial.value is not None)}")
 print("  Best hyperparameters:")
 for key, value in best_params.items():
     print(f"    {key}: {value}")
