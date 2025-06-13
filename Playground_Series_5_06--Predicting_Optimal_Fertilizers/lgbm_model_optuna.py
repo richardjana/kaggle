@@ -120,7 +120,7 @@ study = optuna.create_study(direction='maximize')
 study.optimize(objective, n_trials=10_000, timeout=60*60*11)
 
 best_params = study.best_params
-best_params.pop('n_estimators', best_iterations[study.best_trial.number])
+best_params['n_estimators'] = best_iterations[study.best_trial.number]
 
 # Print best trial
 print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
