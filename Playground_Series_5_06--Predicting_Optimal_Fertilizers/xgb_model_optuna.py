@@ -124,7 +124,7 @@ best_params.pop('n_estimators', best_iterations[study.best_trial.number])
 best_params.pop('early_stopping_rounds', None)
 
 # Print best trial
-print('Best trial:')
+print(f"Best trial: {study.best_trial.number}")
 print(f"  MAP@3: {study.best_value}")
 print('  Best hyperparameters:')
 for key, value in best_params.items():
