@@ -7,13 +7,19 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import TargetEncoder
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
+
+OPTUNA_FRAC = 0.25
+try:
+    SERIAL_NUMBER = sys.argv[1]
+except IndexError:
+    SERIAL_NUMBER = 0
 
 
 def lgb_map3_eval(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[str, float, bool]:
@@ -53,7 +59,9 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train, test, encoder = load_preprocess_data()
+train_full, test, encoder = load_preprocess_data()
+
+_, train = train_test_split(train_full, test_size=OPTUNA_FRAC, random_state=42)
 
 best_iterations = []
 
@@ -65,7 +73,7 @@ def objective(trial):
         'objective': 'multiclass',
         'verbosity': -1,
         'boosting_type': 'gbdt',
-        'n_estimators': 5000,
+        'n_estimators': 5_000,
         'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
         'num_leaves': trial.suggest_int('num_leaves', 20, 150),
         'max_depth': trial.suggest_int('max_depth', 3, 15),
@@ -117,10 +125,12 @@ def objective(trial):
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=10_000, timeout=60*60*11)
+study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 best_params = study.best_params
-best_params['n_estimators'] = best_iterations[study.best_trial.number]
+best_params['n_estimators'] = int(
+    best_iterations[study.best_trial.number] * np.sqrt(1/OPTUNA_FRAC)
+    )  # just a guess
 
 # Print best trial
 print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
@@ -137,17 +147,17 @@ for key, value in best_params.items():
 #                                 verbose_feature_names_out=False)
 #preprocessor.set_output(transform='pandas')
 
-y = train.pop(TARGET_COL)
-#train = preprocessor.fit_transform(train, y)
+y_full = train_full.pop(TARGET_COL)
+#train = preprocessor.fit_transform(train_full, y_full)
 #test = preprocessor.transform(test)
 
 model = lgb.LGBMClassifier(**best_params)
-model.fit(train, y)
+model.fit(train_full, y_full)
 joblib.dump(model, 'lgb_model.pkl')
 
 # make prediction for the test data
 make_prediction(model, test)
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_LGBM_optuna.csv',
-                                 f"LGBM optuna ({study.best_value})")
+                                 f"LGBM optuna {SERIAL_NUMBER} ({study.best_value})")
 print(f'Public score: {public_score}')

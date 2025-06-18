@@ -5,7 +5,7 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import TargetEncoder
 import xgboost as xgb
 
@@ -13,6 +13,12 @@ sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
+
+OPTUNA_FRAC = 0.25
+try:
+    SERIAL_NUMBER = sys.argv[1]
+except IndexError:
+    SERIAL_NUMBER = 0
 
 
 def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -52,8 +58,10 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train, test, encoder = load_preprocess_data()
-NUM_CLASSES = train[TARGET_COL].unique()
+train_full, test, encoder = load_preprocess_data()
+NUM_CLASSES = train_full[TARGET_COL].unique()
+
+_, train = train_test_split(train_full, test_size=OPTUNA_FRAC, random_state=42)
 
 best_iterations = []
 
@@ -74,7 +82,9 @@ def objective(trial):
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
         "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
-        "n_estimators": 10000,
+        "n_estimators": 10_000,
+        "max_delta_step": trial.suggest_float("max_delta_step", 0, 10),
+        "gamma": trial.suggest_float("gamma", 0, 10, log=True),
         "use_label_encoder": False,
         "early_stopping_rounds": 100
     }
@@ -117,10 +127,12 @@ def objective(trial):
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=10_000, timeout=60*60*11)
+study.optimize(objective, n_trials=10_000, timeout=60*60*5)
 
 best_params = study.best_params
-best_params['n_estimators'] = best_iterations[study.best_trial.number]
+best_params['n_estimators'] = int(
+    best_iterations[study.best_trial.number] * np.sqrt(1/OPTUNA_FRAC)
+    )  # just a guess
 best_params.pop('early_stopping_rounds', None)
 
 # Print best trial
@@ -138,17 +150,17 @@ for key, value in best_params.items():
 #                                 verbose_feature_names_out=False)
 #preprocessor.set_output(transform='pandas')
 
-y = train.pop(TARGET_COL)
-#train = preprocessor.fit_transform(train, y)
+y_full = train_full.pop(TARGET_COL)
+#train = preprocessor.fit_transform(train_full, y_full)
 #test = preprocessor.transform(test)
 
 model = xgb.XGBClassifier(**best_params, use_label_encoder=False)
-model.fit(train, y)
+model.fit(train_full, y_full)
 joblib.dump(model, 'xgb_model.pkl')
 
 # make prediction for the test data
 make_prediction(model, test)
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
-                                 f"XGB optuna ({study.best_value})")
+                                 f"XGB optuna {SERIAL_NUMBER} ({study.best_value})")
 print(f"Public score: {public_score}")
