@@ -6,7 +6,6 @@ import pandas as pd
 from scipy.stats import zscore
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
-
 TARGET_COL = 'Fertilizer Name'
 COMPETITION_NAME = 'playground-series-s5e6'
 
@@ -85,6 +84,9 @@ def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
     df['P/K'] = df['Phosphorous'] / df['Potassium']
     df['N+P+K'] = df['Nitrogen'] + df['Phosphorous'] + df['Potassium']
 
+    df['Humidity_Temp_ratio'] = df['Humidity'] / df['Temperature']
+    df['Moisture_Temp_ratio'] = df['Moisture'] / df['Temperature']
+
     return df
 
 
@@ -125,8 +127,6 @@ def add_derived_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
     """ Prepare training and test data into pandas DataFrames: added columns, transformations, etc.
-    Args:
-        framework (str): Name of the used framework, to encode categories correctly.
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
     """
@@ -134,9 +134,6 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
     original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
     train = pd.concat([train, original], ignore_index=True)
     test = clean_data(pd.read_csv('test.csv'))
-
-    #from sklearn.model_selection import KFold, train_test_split
-    #train, _ = train_test_split(train, test_size=0.75, random_state=42)
 
     #train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
     #train.drop(columns=['Soil Type', 'Crop Type'], inplace=True)  # optional
