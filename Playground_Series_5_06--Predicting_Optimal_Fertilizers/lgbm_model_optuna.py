@@ -16,6 +16,7 @@ from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 
 OPTUNA_FRAC = 0.25
+N_AUGMENT = 4
 try:
     SERIAL_NUMBER = sys.argv[1]
 except IndexError:
@@ -59,7 +60,9 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train_full, test, encoder = load_preprocess_data()
+train_full, test, X_original, encoder = load_preprocess_data()
+
+y_original = X_original.pop(TARGET_COL)
 
 _, train = train_test_split(train_full, test_size=OPTUNA_FRAC, random_state=42)
 
@@ -92,6 +95,13 @@ def objective(trial):
 
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
+
+        for k in range(int(N_AUGMENT * OPTUNA_FRAC)):
+            X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
+                                                              test_size=1/5, random_state=k,
+                                                              stratify=y_original)
+            X_train_fold = pd.concat([X_train_fold, X_orig_frac], ignore_index=True)
+            y_train_fold = pd.concat([y_train_fold, y_orig_frac], ignore_index=True)
 
         #te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
         #preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
@@ -148,6 +158,11 @@ for key, value in best_params.items():
 #preprocessor.set_output(transform='pandas')
 
 y_full = train_full.pop(TARGET_COL)
+for k in range(N_AUGMENT):
+    X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original, test_size=1/5,
+                                                      random_state=k, stratify=y_original)
+    train_full = pd.concat([train_full, X_orig_frac], ignore_index=True)
+    y_full = pd.concat([y_full, y_orig_frac], ignore_index=True)
 #train = preprocessor.fit_transform(train_full, y_full)
 #test = preprocessor.transform(test)
 

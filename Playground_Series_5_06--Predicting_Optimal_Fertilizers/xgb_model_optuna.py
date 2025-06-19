@@ -5,7 +5,7 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.preprocessing import TargetEncoder
 import xgboost as xgb
 
@@ -15,6 +15,7 @@ from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 
 OPTUNA_FRAC = 0.25
+N_AUGMENT = 4
 try:
     SERIAL_NUMBER = sys.argv[1]
 except IndexError:
@@ -58,8 +59,10 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train_full, test, encoder = load_preprocess_data()
+train_full, test, X_original, encoder = load_preprocess_data()
 NUM_CLASSES = train_full[TARGET_COL].unique()
+
+y_original = X_original.pop(TARGET_COL)
 
 _, train = train_test_split(train_full, test_size=OPTUNA_FRAC, random_state=42)
 
@@ -89,14 +92,21 @@ def objective(trial):
         "early_stopping_rounds": 100
     }
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     mapa3_scores = []
 
-    for train_idx, val_idx in kf.split(train):
+    for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
         X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
+
+        for k in range(int(N_AUGMENT * OPTUNA_FRAC)):
+            X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
+                                                              test_size=1/5, random_state=k,
+                                                              stratify=y_original)
+            X_train_fold = pd.concat([X_train_fold, X_orig_frac], ignore_index=True)
+            y_train_fold = pd.concat([y_train_fold, y_orig_frac], ignore_index=True)
 
         #te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
         #preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
@@ -108,11 +118,10 @@ def objective(trial):
         #X_val_fold = preprocessor.transform(X_val_fold)
 
         model = xgb.XGBClassifier(**param)
-        model.fit(
-            X_train_fold, y_train_fold,
-            eval_set=[(X_val_fold, y_val_fold)],
-            verbose=False,
-        )
+        model.fit(X_train_fold, y_train_fold,
+                  eval_set=[(X_val_fold, y_val_fold)],
+                  verbose=False
+                  )
 
         pred_val = model.predict_proba(X_val_fold)
         top_3 = np.argsort(-pred_val, axis=1)[:, :3]
@@ -151,6 +160,11 @@ for key, value in best_params.items():
 #preprocessor.set_output(transform='pandas')
 
 y_full = train_full.pop(TARGET_COL)
+for k in range(N_AUGMENT):
+    X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original, test_size=1/5,
+                                                      random_state=k, stratify=y_original)
+    train_full = pd.concat([train_full, X_orig_frac], ignore_index=True)
+    y_full = pd.concat([y_full, y_orig_frac], ignore_index=True)
 #train = preprocessor.fit_transform(train_full, y_full)
 #test = preprocessor.transform(test)
 

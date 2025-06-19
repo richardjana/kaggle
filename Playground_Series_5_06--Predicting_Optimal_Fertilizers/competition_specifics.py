@@ -49,21 +49,25 @@ def add_fertilizer_components(pd_df: pd.DataFrame) -> pd.DataFrame:
     return pd_df.merge(composition_df, on='Fertilizer Name', how='left')
 
 
-def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame
-                            ) -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
+def encode_category_columns(train_df: pd.DataFrame,
+                            test_df: pd.DataFrame,
+                            original_df: pd.DataFrame,
+                            ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, LabelEncoder]:
     """ Encode categorical columns: label encoding for the TARGET_COL, one-hot encoding for all
         other categories.
     Args:
         train_df (pd.DataFrame): Training data.
         test_df (pd.DataFrame): Test data.
+        original_df (pd.DataFrame): The original dataset.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]: Encoded training data, test data and label
-            encoder to inverse transform the target.
+        Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]: Encoded training data, test data, original
+         data and label encoder to inverse transform the target.
     """
     le = LabelEncoder()
     train_df[TARGET_COL] = le.fit_transform(train_df[TARGET_COL])
+    original_df[TARGET_COL] = le.transform(original_df[TARGET_COL])
 
-    combined = pd.concat([train_df, test_df], axis=0)  # for consistent encoding
+    combined = pd.concat([train_df, test_df, original_df], axis=0)  # for consistent encoding
 
     categorical_cols = ['Soil Type', 'Crop Type']
     available_cols = [col for col in categorical_cols if col in train_df.columns]
@@ -71,10 +75,11 @@ def encode_category_columns(train_df: pd.DataFrame, test_df: pd.DataFrame
     combined_encoded = pd.get_dummies(combined, columns=available_cols)
 
     train_df_encoded = combined_encoded.iloc[:len(train_df), :]
-    test_df_encoded = combined_encoded.iloc[len(train_df):, :]
+    test_df_encoded = combined_encoded.iloc[len(train_df):-len(original_df), :]
     test_df_encoded.drop(columns=[TARGET_COL], inplace=True)
+    original_df_encoded = combined_encoded.iloc[-len(original_df):, :]
 
-    return train_df_encoded, test_df_encoded, le
+    return train_df_encoded, test_df_encoded, original_df_encoded, le
 
 
 def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
@@ -125,14 +130,14 @@ def add_derived_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
+def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, LabelEncoder]:
     """ Prepare training and test data into pandas DataFrames: added columns, transformations, etc.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: Training and test data, ready for model training.
+        Tuple[pd.DataFrame, pd.DataFrame]: Training, test and original data, ready for model
+            training.
     """
     train = clean_data(pd.read_csv('train.csv'))
     original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
-    train = pd.concat([train, original], ignore_index=True)
     test = clean_data(pd.read_csv('test.csv'))
 
     #train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
@@ -143,9 +148,9 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
     #train = add_derived_cols(train)
     #test = add_derived_cols(test)
 
-    train, test, encoder = encode_category_columns(train, test)
+    train, test, original, encoder = encode_category_columns(train, test, original)
 
     #train = add_nutrient_chemistry(train)
     #test = add_nutrient_chemistry(test)
 
-    return train, test, encoder
+    return train, test, original, encoder
