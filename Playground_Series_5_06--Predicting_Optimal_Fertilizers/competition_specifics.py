@@ -140,9 +140,9 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, La
     original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
     test = clean_data(pd.read_csv('test.csv'))
 
-    #train['is_original'] = pd.Categorical(['False'] * len(train))
-    #original['is_original'] = pd.Categorical(['True'] * len(original))
-    #test['is_original'] = pd.Categorical(['False'] * len(test))
+    train['is_original'] = pd.Categorical(['False'] * len(train), categories=['False', 'True'])
+    original['is_original'] = pd.Categorical(['True'] * len(original), categories=['False', 'True'])
+    test['is_original'] = pd.Categorical(['False'] * len(test), categories=['False', 'True'])
 
     #train = add_derived_cols(train)
     #test = add_derived_cols(test)
