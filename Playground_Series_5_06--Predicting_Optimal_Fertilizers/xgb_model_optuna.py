@@ -44,6 +44,9 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 # Load dataset
 train_full, test, X_original, encoder = load_preprocess_data()
+for df in [train_full, test, X_original]:
+    df = df.astype('category')
+
 NUM_CLASSES = train_full[TARGET_COL].unique()
 
 y_original = X_original.pop(TARGET_COL)
@@ -57,23 +60,24 @@ def objective(trial):
     best_iteration_folds = []
 
     param = {
-        "objective": "multi:softprob",
-        "eval_metric": 'mlogloss',
-        "num_class": NUM_CLASSES,
-        "tree_method": "hist",
-        "verbosity": 0,
-        "eta": trial.suggest_float("learning_rate", 1e-3, 0.1, log=True),
-        "max_depth": trial.suggest_int("max_depth", 3, 15),
-        "min_child_weight": trial.suggest_int("min_child_weight", 1, 100),
-        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
-        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
-        "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
-        "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
-        "n_estimators": 10_000,
-        "max_delta_step": trial.suggest_float("max_delta_step", 0, 10),
-        "gamma": trial.suggest_float("gamma", 0, 10, log=True),
-        "use_label_encoder": False,
-        "early_stopping_rounds": 100
+        'objective': 'multi:softprob',
+        'eval_metric': 'mlogloss',
+        'num_class': NUM_CLASSES,
+        'tree_method': 'hist',
+        'verbosity': 0,
+        'eta': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
+        'max_depth': trial.suggest_int('max_depth', 3, 15),
+        'min_child_weight': trial.suggest_int('min_child_weight', 1, 100),
+        'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+        'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
+        'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
+        'n_estimators': 10_000,
+        "max_delta_step": trial.suggest_float('max_delta_step', 0, 10),
+        'gamma': trial.suggest_float('gamma', 0, 10, log=True),
+        'use_label_encoder': False,
+        'early_stopping_rounds': 100,
+        'enable_categorical': True
     }
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -135,7 +139,7 @@ for k in range(N_AUGMENT):
     train_full = pd.concat([train_full, X_orig_frac], ignore_index=True)
     y_full = pd.concat([y_full, y_orig_frac], ignore_index=True)
 
-model = xgb.XGBClassifier(**best_params, use_label_encoder=False)
+model = xgb.XGBClassifier(**best_params)
 model.fit(train_full, y_full)
 joblib.dump(model, 'xgb_model.pkl')
 
