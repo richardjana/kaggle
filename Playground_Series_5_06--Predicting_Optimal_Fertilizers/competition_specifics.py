@@ -140,10 +140,9 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, La
     original = clean_data(pd.read_csv('Fertilizer_Prediction.csv'))
     test = clean_data(pd.read_csv('test.csv'))
 
-    #train['sc-interaction'] = train['Soil Type'].str.cat(train['Crop Type'], sep=' ')
-    #train.drop(columns=['Soil Type', 'Crop Type'], inplace=True)  # optional
-    #test['sc-interaction'] = test['Soil Type'].str.cat(test['Crop Type'], sep=' ')
-    #test.drop(columns=['Soil Type', 'Crop Type'], inplace=True)  # optional
+    #train['is_original'] = pd.Categorical(['False'] * len(train))
+    #original['is_original'] = pd.Categorical(['True'] * len(original))
+    #test['is_original'] = pd.Categorical(['False'] * len(test))
 
     #train = add_derived_cols(train)
     #test = add_derived_cols(test)

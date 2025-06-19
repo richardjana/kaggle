@@ -4,9 +4,7 @@ import joblib
 import numpy as np
 import optuna
 import pandas as pd
-from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import TargetEncoder
 import xgboost as xgb
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))

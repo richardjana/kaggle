@@ -6,9 +6,7 @@ import lightgbm as lgb
 import numpy as np
 import optuna
 import pandas as pd
-from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import TargetEncoder
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import mapk  # noqa
@@ -103,15 +101,6 @@ def objective(trial):
             X_train_fold = pd.concat([X_train_fold, X_orig_frac], ignore_index=True)
             y_train_fold = pd.concat([y_train_fold, y_orig_frac], ignore_index=True)
 
-        #te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
-        #preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
-        #                                 remainder='passthrough',
-        #                                 verbose_feature_names_out=False)
-        #preprocessor.set_output(transform='pandas')
-
-        #X_train_fold = preprocessor.fit_transform(X_train_fold, y_train_fold)
-        #X_val_fold = preprocessor.transform(X_val_fold)
-
         model = lgb.LGBMClassifier(**param)
         model.fit(X_train_fold, y_train_fold,
                   eval_set=[(X_val_fold, y_val_fold)],
@@ -151,20 +140,12 @@ for key, value in best_params.items():
     print(f"    {key}: {value}")
 
 # Train final model with best parameters
-#te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
-#preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
-#                                 remainder='passthrough',
-#                                 verbose_feature_names_out=False)
-#preprocessor.set_output(transform='pandas')
-
 y_full = train_full.pop(TARGET_COL)
 for k in range(N_AUGMENT):
     X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original, test_size=1/5,
                                                       random_state=k, stratify=y_original)
     train_full = pd.concat([train_full, X_orig_frac], ignore_index=True)
     y_full = pd.concat([y_full, y_orig_frac], ignore_index=True)
-#train = preprocessor.fit_transform(train_full, y_full)
-#test = preprocessor.transform(test)
 
 model = lgb.LGBMClassifier(**best_params)
 model.fit(train_full, y_full)
