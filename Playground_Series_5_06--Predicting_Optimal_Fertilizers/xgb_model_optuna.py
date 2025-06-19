@@ -20,20 +20,6 @@ except IndexError:
     SERIAL_NUMBER = 0
 
 
-def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """ Custom evaluation function for XGBClassifier to compute MAP@3.
-    Args:
-        y_true (np.ndarray): Ground truth labels.
-        y_pred (np.ndarray): Array of predictions.
-    Returns:
-        float: Metric value.
-    """
-    top_3 = np.argsort(-y_pred, axis=1)[:, :3]
-    actual = [[int(label)] for label in y_true]
-
-    return mapk(actual, top_3.tolist(), k=3)
-
-
 def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
