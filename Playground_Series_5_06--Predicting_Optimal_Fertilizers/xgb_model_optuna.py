@@ -73,7 +73,7 @@ def objective(trial):
         'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
         'n_estimators': 10_000,
-        "max_delta_step": trial.suggest_float('max_delta_step', 0, 10),
+        "max_delta_step": trial.suggest_float('max_delta_step', 1e-3, 10),
         'gamma': trial.suggest_float('gamma', 0, 10, log=True),
         'use_label_encoder': False,
         'early_stopping_rounds': 100,
