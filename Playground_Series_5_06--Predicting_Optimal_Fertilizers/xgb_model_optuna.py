@@ -48,7 +48,7 @@ for df in [train_full, test, X_original]:
     for col in df.columns:
         df[col] = df[col].astype('category')
 
-NUM_CLASSES = train_full[TARGET_COL].unique()
+NUM_CLASSES = len(encoder.classes_)
 
 y_original = X_original.pop(TARGET_COL)
 
