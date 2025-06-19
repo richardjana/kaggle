@@ -45,7 +45,8 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 # Load dataset
 train_full, test, X_original, encoder = load_preprocess_data()
 for df in [train_full, test, X_original]:
-    df = df.astype('category')
+    for col in df.columns:
+        df[col] = df[col].astype('category')
 
 NUM_CLASSES = train_full[TARGET_COL].unique()
 
