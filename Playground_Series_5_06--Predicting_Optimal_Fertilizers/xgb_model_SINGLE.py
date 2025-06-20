@@ -2,9 +2,9 @@ import sys
 
 import joblib
 import numpy as np
-import optuna
+from numpy.typing import NDArray
 import pandas as pd
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split
 import xgboost as xgb
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
@@ -12,29 +12,20 @@ from kaggle_utilities import mapk  # noqa
 from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 
-
-def xgb_feval_map3(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """ Custom evaluation function for XGBClassifier to compute MAP@3.
-    Args:
-        y_true (np.ndarray): Ground truth labels.
-        y_pred (np.ndarray): Array of predictions.
-    Returns:
-        float: Metric value.
-    """
-    top_3 = np.argsort(-y_pred, axis=1)[:, :3]
-    actual = [[int(label)] for label in y_true]
-
-    return mapk(actual, top_3.tolist(), k=3)
+OPTUNA_FRAC = 0.25
+N_AUGMENT = 6
+try:
+    SERIAL_NUMBER = sys.argv[1]
+except IndexError:
+    SERIAL_NUMBER = 0
 
 
-def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
+def make_prediction(pred_proba: NDArray) -> None:
     """ Make a prediction for the test data, with a given model.
     Args:
-        model (xgb.XGBClassifier): Model used for the prediction.
-        test_df (pd.DataFrame): DataFrame with the test data, pre-processed.
+        pred_proba (NDArray): Averaged predicted probabilities.
     """
     submit_df = pd.read_csv('sample_submission.csv')
-    pred_proba = np.asarray(model.predict_proba(test_df.to_numpy()))
     top_3_indices = np.argsort(-pred_proba, axis=1)[:, :3]
 
     top_3_labels = np.array([
@@ -50,43 +41,75 @@ def make_prediction(model: xgb.XGBClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train, test, encoder = load_preprocess_data()
-NUM_CLASSES = train[TARGET_COL].unique()
+train_full, test, X_original, encoder = load_preprocess_data()
+for df in [train_full, test, X_original]:
+    for col in df.columns:
+        df[col] = df[col].astype('category')
 
-best_params = {
-    "objective": "multi:softprob",
-    "eval_metric": 'mlogloss',
-    "num_class": NUM_CLASSES,
-    "tree_method": "hist",
-    "eta": 0.0054713056635367525,
-    "max_depth": 15,
-    "min_child_weight": 70,
-    "subsample": 0.819617292814055,
-    "colsample_bytree": 0.5405932267716387,
-    "reg_alpha": 0.018704027081724698,
-    "reg_lambda": 0.7562848707375666,
-    "n_estimators": int(3318 * np.sqrt(1/0.5)),
-    "use_label_encoder": False,
+NUM_CLASSES = len(encoder.classes_)
+
+y_original = X_original.pop(TARGET_COL)
+
+
+params = {
+    'objective': 'multi:softprob',
+    'eval_metric': 'mlogloss',
+    'num_class': NUM_CLASSES,
+    'tree_method': 'hist',
+    'learning_rate': 0.02,
+    'max_depth': 16,
+    'min_child_weight': 5,
+    'subsample': 0.86,
+    'colsample_bytree': 0.4,
+    'reg_alpha': 3,
+    'reg_lambda': 1.4,
+    'n_estimators': 10_000,
+    'max_delta_step': 5,
+    'gamma': 0.26,
+    'use_label_encoder': False,
+    'early_stopping_rounds': 100,
+    'enable_categorical': True
 }
 
 # Train final model with best parameters
-#te = TargetEncoder(target_type='multiclass', cv=5, shuffle=True, random_state=42)
-#preprocessor = ColumnTransformer(transformers=[('te', te, ['sc-interaction'])],
-#                                 remainder='passthrough',
-#                                 verbose_feature_names_out=False)
-#preprocessor.set_output(transform='pandas')
+oof_preds = np.zeros((len(train_full), NUM_CLASSES))
+test_fold_preds = []
+mapa3_scores = []
 
-y = train.pop(TARGET_COL)
-#train = preprocessor.fit_transform(train_full, y_full)
-#test = preprocessor.transform(test)
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+for train_idx, val_idx in skf.split(train_full, train_full[TARGET_COL]):
+    X_train_fold, X_val_fold = train_full.iloc[train_idx].copy(), train_full.iloc[val_idx].copy()
 
-model = xgb.XGBClassifier(**best_params)
-model.fit(train, y)
-joblib.dump(model, 'xgb_model.pkl')
+    y_train_fold = X_train_fold.pop(TARGET_COL)
+    y_val_fold = X_val_fold.pop(TARGET_COL)
+
+    weights = [1.0] * len(X_train_fold) + [N_AUGMENT] * len(X_original)
+    X_train_fold = pd.concat([X_train_fold, X_original], ignore_index=True)
+    y_train_fold = pd.concat([y_train_fold, y_original], ignore_index=True)
+
+    model = xgb.XGBClassifier(**params)
+    model.fit(X_train_fold, y_train_fold,
+              eval_set=[(X_val_fold, y_val_fold)],
+              sample_weight=weights
+              )
+
+    oof_preds[val_idx] = model.predict_proba(X_val_fold)
+    top_3 = np.argsort(-oof_preds[val_idx], axis=1)[:, :3]
+    actual = [[int(label)] for label in y_val_fold]
+    mapa3_scores.append(mapk(actual, top_3.tolist(), k=3))
+
+    test_fold_preds.append(model.predict_proba(test))
+
+# save predictions for ensembling
+joblib.dump({'oof_preds': oof_preds,
+             'test_preds': np.mean(test_fold_preds, axis=0),
+             'y_train': train_full[TARGET_COL].values
+             },
+             'stacking_data.pkl')
 
 # make prediction for the test data
-make_prediction(model, test)
+make_prediction(np.mean(test_fold_preds, axis=0))
 
-public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
-                                 f"XGB optuna 12 (0.3275286274509804)")
+public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_single.csv',
+                                 f"XGB single ({np.mean(mapa3_scores)})")
 print(f"Public score: {public_score}")
