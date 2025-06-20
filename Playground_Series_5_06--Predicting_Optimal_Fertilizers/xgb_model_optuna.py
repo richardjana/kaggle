@@ -61,11 +61,11 @@ def objective(trial):
         'num_class': NUM_CLASSES,
         'tree_method': 'hist',
         'verbosity': 0,
-        'eta': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
-        'max_depth': trial.suggest_int('max_depth', 3, 15),
+        'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
+        'max_depth': trial.suggest_int('max_depth', 3, 20),
         'min_child_weight': trial.suggest_int('min_child_weight', 1, 100),
         'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.3, 1.0),
         'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
         'n_estimators': 10_000,
@@ -169,5 +169,5 @@ joblib.dump({'oof_preds': oof_preds,
 make_prediction(np.mean(test_fold_preds, axis=0))
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
-                                 f"XGB optuna {SERIAL_NUMBER} ({study.best_value})")
+                                 f"XGB optuna {SERIAL_NUMBER} ({np.mean(mapa3_scores)})")
 print(f"Public score: {public_score}")
