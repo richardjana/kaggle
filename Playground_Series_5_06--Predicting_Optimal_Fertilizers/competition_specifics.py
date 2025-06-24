@@ -144,6 +144,11 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, La
     original['is_original'] = pd.Categorical(['True'] * len(original), categories=['False', 'True'])
     test['is_original'] = pd.Categorical(['False'] * len(test), categories=['False', 'True'])
 
+    # constant feature to add variety to tree ensemble
+    train['constant'] = pd.Categorical(['const'] * len(train))
+    original['constant'] = pd.Categorical(['const'] * len(original))
+    test['constant'] = pd.Categorical(['const'] * len(test))
+
     #train = add_derived_cols(train)
     #test = add_derived_cols(test)
 
