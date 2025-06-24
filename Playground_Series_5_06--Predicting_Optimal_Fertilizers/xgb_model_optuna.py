@@ -86,15 +86,17 @@ def objective(trial):
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
 
-        weights = [1.0] * len(X_train_fold) + [N_AUGMENT] * len(X_original)
-        X_train_fold = pd.concat([X_train_fold, X_original], ignore_index=True)
-        y_train_fold = pd.concat([y_train_fold, y_original], ignore_index=True)
+        for k in range(int(N_AUGMENT * OPTUNA_FRAC)):
+            X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
+                                                              test_size=1/5, random_state=k,
+                                                              stratify=y_original)
+            X_train_fold = pd.concat([X_train_fold, X_orig_frac], ignore_index=True)
+            y_train_fold = pd.concat([y_train_fold, y_orig_frac], ignore_index=True)
 
         model = xgb.XGBClassifier(**param)
         model.fit(X_train_fold, y_train_fold,
                   eval_set=[(X_val_fold, y_val_fold)],
-                  verbose=False,
-                  sample_weight=weights
+                  verbose=False
                   )
 
         oof_preds[val_idx] = model.predict_proba(X_val_fold)
@@ -141,14 +143,16 @@ for train_idx, val_idx in skf.split(train_full, train_full[TARGET_COL]):
     y_train_fold = X_train_fold.pop(TARGET_COL)
     y_val_fold = X_val_fold.pop(TARGET_COL)
 
-    weights = [1.0] * len(X_train_fold) + [N_AUGMENT] * len(X_original)
-    X_train_fold = pd.concat([X_train_fold, X_original], ignore_index=True)
-    y_train_fold = pd.concat([y_train_fold, y_original], ignore_index=True)
+    for k in range(N_AUGMENT):
+        X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
+                                                          test_size=1/5, random_state=k,
+                                                          stratify=y_original)
+        X_train_fold = pd.concat([X_train_fold, X_orig_frac], ignore_index=True)
+        y_train_fold = pd.concat([y_train_fold, y_orig_frac], ignore_index=True)
 
     model = xgb.XGBClassifier(**best_params)
     model.fit(X_train_fold, y_train_fold,
-              eval_set=[(X_val_fold, y_val_fold)],
-              sample_weight=weights
+              eval_set=[(X_val_fold, y_val_fold)]
               )
 
     oof_preds[val_idx] = model.predict_proba(X_val_fold)
