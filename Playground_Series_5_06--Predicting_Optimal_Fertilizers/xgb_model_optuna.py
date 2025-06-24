@@ -14,7 +14,8 @@ from kaggle_api_functions import submit_prediction
 from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 
 OPTUNA_FRAC = 0.25
-N_AUGMENT = 6
+N_AUGMENT_ORIGINAL = 6
+N_AUGMENT_TRAIN = 1
 try:
     SERIAL_NUMBER = sys.argv[1]
 except IndexError:
@@ -83,10 +84,12 @@ def objective(trial):
     for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
         X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
+        X_train_fold = pd.concat([X_train_fold] * (N_AUGMENT_TRAIN+1), ignore_index=True)
+
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
 
-        for k in range(int(N_AUGMENT * OPTUNA_FRAC)):
+        for k in range(int(N_AUGMENT_ORIGINAL * OPTUNA_FRAC)):
             X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
                                                               test_size=1/5, random_state=k,
                                                               stratify=y_original)
@@ -140,10 +143,12 @@ skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 for train_idx, val_idx in skf.split(train_full, train_full[TARGET_COL]):
     X_train_fold, X_val_fold = train_full.iloc[train_idx].copy(), train_full.iloc[val_idx].copy()
 
+    X_train_fold = pd.concat([X_train_fold] * (N_AUGMENT_TRAIN+1), ignore_index=True)
+
     y_train_fold = X_train_fold.pop(TARGET_COL)
     y_val_fold = X_val_fold.pop(TARGET_COL)
 
-    for k in range(N_AUGMENT):
+    for k in range(N_AUGMENT_ORIGINAL):
         X_orig_frac, _, y_orig_frac, _ = train_test_split(X_original, y_original,
                                                           test_size=1/5, random_state=k,
                                                           stratify=y_original)
