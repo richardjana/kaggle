@@ -68,6 +68,7 @@ def compile_params_for_framework(fw_name: str) -> None:
         score, params = read_trial_results_file(results_file)
 
         if score < best_scores[target_col]:
+            best_scores[target_col] = score
             data[target_col] = params
             best_indices[target_col] = i
 
