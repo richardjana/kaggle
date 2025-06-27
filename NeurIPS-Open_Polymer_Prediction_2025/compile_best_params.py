@@ -72,7 +72,7 @@ def compile_params_for_framework(framework: str) -> None:
     for param_dict in data.values():
         param_dict.update(OTHER_PARAMS)
 
-    with open(f"best_params_{framework}.json", 'w', encoding='utf-8') as best_params_file:
+    with open(f"best_params_{framework}.txt", 'w', encoding='utf-8') as best_params_file:
         best_params_file.write("params = ")
         best_params_file.write(pformat(data))
 
