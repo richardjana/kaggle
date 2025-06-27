@@ -59,14 +59,17 @@ def compile_params_for_framework(fw_name: str) -> None:
     """
     data = {target: {} for target in TARGETS}
     best_scores = {target: 1e6 for target in TARGETS}
+    best_indices = {target: -1 for target in TARGETS}
 
     # read / filter data from file
     for results_file in glob.glob(f"optuna_{fw_name}_*_*.txt"):
         target_col = results_file.split('_')[2]
+        i = int(results_file.split('_')[3].split('.')[0])
         score, params = read_trial_results_file(results_file)
 
         if score < best_scores[target_col]:
             data[target_col] = params
+            best_indices[target_col] = i
 
     # add additional setting entries
     for param_dict in data.values():
@@ -75,6 +78,9 @@ def compile_params_for_framework(fw_name: str) -> None:
     with open(f"best_params_{fw_name}.txt", 'w', encoding='utf-8') as best_params_file:
         best_params_file.write("params = ")
         best_params_file.write(pformat(data))
+
+    print('Best study indices:')
+    print(best_indices)
 
 
 for framework in ['XGB']:
