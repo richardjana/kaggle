@@ -1,3 +1,6 @@
+import sys
+from typing import List, Tuple
+
 import numpy as np
 import optuna
 import pandas as pd
@@ -9,52 +12,70 @@ import xgboost as xgb
 
 
 TARGETS = ['Tg', 'FFV', 'Tc', 'Density', 'Rg']
-TARGET_COL = 'Rg'
 N_CV_SPLITS = 5
-
-
 try:
-    train = pd.read_csv('train_rdkit_features.csv')
-    desc_names = list(set(train.columns) - set(TARGETS))
-except (FileNotFoundError, pd.errors.EmptyDataError):
-    train = pd.read_csv('train.csv')
+    I = int(sys.argv[1])  # index for the study (output files)
+except IndexError:
+    I = 0
 
-    ### RDKit FE ###
-    def compute_all_descriptors(smiles):
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            return [None] * len(desc_names)
-        return [desc[1](mol) for desc in Descriptors.descList]
+### RDKit FE ###
+def compute_all_descriptors(smiles: str) -> List[float | int | None]:
+    """ Computes chemical descriptors from SMILES notation using RDKit.
+    Args:
+        smiles (str): SMILES descriptor for a structure.
+    Returns:
+        List[float | int | None]: List of descriptor values.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return [None] * len(Descriptors.descList)
 
-    desc_names = [desc[0] for desc in Descriptors.descList]
-
-    descriptors = [compute_all_descriptors(smi) for smi in train['SMILES'].to_list()]
-    descriptors = pd.DataFrame(descriptors, columns=desc_names)
-    train = pd.concat([train,descriptors],axis=1)
-
-    # drop SMILES columns
-    train = train.drop(columns=['SMILES'])
-
-    # drop RDKit descriptors that are missing for some reason or have dubious values
-    cols = ['Ipc', 'BCUT2D_MWHI', 'BCUT2D_MWLOW',
-            'BCUT2D_CHGHI', 'BCUT2D_CHGLO', 'BCUT2D_LOGPHI',
-            'BCUT2D_LOGPLOW', 'BCUT2D_MRHI', 'BCUT2D_MRLOW']
-    train = train.drop(columns=cols)
-    desc_names = list(set(desc_names) - set(cols))
-
-    # fix inf and NaN values
-    for col in desc_names:
-        train[col] = train[col].replace([np.inf, -np.inf], np.nan)
-        median = train[col].median(skipna=True)
-        train[col] = train[col].fillna(median)
-
-    train.to_csv('train_rdkit_features.csv', index=False)
+    return [desc[1](mol) for desc in Descriptors.descList]
 
 
-train = train[train[TARGET_COL].notnull()]  # filter rows
+### read or create training data ###
+def read_training_data(target_col: str) -> Tuple[pd.DataFrame, List[str]]:
+    """ Try to read the training data with precomputed RDKit descriptors from file, otherwise
+        read the raw training data and compute the descriptors. (And write them to file.)
+    Args:
+        target_col (str): Name of the target, to filter the sparse training data rows.
+    Returns:
+        Tuple[pd.DataFrame, List[str]]: The training data, with RDKit descriptors, and a list of
+            the descriptor names.
+    """
+    try:
+        train = pd.read_csv('train_rdkit_features.csv')
+        desc_names = list(set(train.columns) - set(TARGETS))
+
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        train = pd.read_csv('train.csv')
+
+        desc_names = [desc[0] for desc in Descriptors.descList]
+        descriptors = [compute_all_descriptors(smi) for smi in train['SMILES'].to_list()]
+        descriptors = pd.DataFrame(descriptors, columns=desc_names)
+        train = pd.concat([train, descriptors],axis=1)
+
+        train = train.drop(columns=['SMILES'])  # drop SMILES columns
+
+        # drop RDKit descriptors that are missing for some reason or have dubious values
+        cols = ['Ipc', 'BCUT2D_MWHI', 'BCUT2D_MWLOW',
+                'BCUT2D_CHGHI', 'BCUT2D_CHGLO', 'BCUT2D_LOGPHI',
+                'BCUT2D_LOGPLOW', 'BCUT2D_MRHI', 'BCUT2D_MRLOW']
+        train = train.drop(columns=cols)
+        desc_names = list(set(desc_names) - set(cols))
+
+        for col in desc_names:  # fix inf and NaN values
+            train[col] = train[col].replace([np.inf, -np.inf], np.nan)
+            median = train[col].median(skipna=True)
+            train[col] = train[col].fillna(median)
+
+        train.to_csv('train_rdkit_features.csv', index=False)
+
+    train = train[train[target_col].notnull()]  # filter rows
+
+    return train, desc_names
 
 
-### Optuna XGB training ###
 def objective(trial):
     """ Objective function for Optuna. """
     params = {
@@ -99,14 +120,18 @@ def objective(trial):
     return np.mean(mae_scores)
 
 
-### Create and optimize Optuna study ###
-study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=10_000, timeout=60*60*0.5)
+for TARGET_COL in TARGETS:
+    train, desc_names = read_training_data(TARGET_COL)
 
-# Print best trial
-print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
-print(f"  MAE: {study.best_value}")
-print(f"  worst MAE: {max(trial.value for trial in study.trials if trial.value is not None)}")
-print('  Best hyperparameters:')
-for key, value in study.best_params.items():
-    print(f"    {key}: {value}")
+    study = optuna.create_study(direction='minimize')
+    study.optimize(objective, n_trials=10_000, timeout=60*60*0.5)
+
+    worst_mae = max(trial.value for trial in study.trials if trial.value is not None)
+
+    with open(f"optuna_XGB_{TARGET_COL}_{I}.txt", 'w', encoding='utf-8') as out_file:
+        out_file.write(f"Best trial: {study.best_trial.number}/{len(study.trials)}\n")
+        out_file.write(f"  MAE: {study.best_value}\n")
+        out_file.write(f"  worst MAE: {worst_mae}\n")
+        out_file.write('  Best hyperparameters:\n')
+        for key, value in study.best_params.items():
+            out_file.write(f"    {key}: {value}\n")
