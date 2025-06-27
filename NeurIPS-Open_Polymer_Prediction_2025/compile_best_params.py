@@ -1,7 +1,8 @@
-from typing import Dict, Tuple
-
 import glob
 from pprint import pformat
+from typing import Dict, Tuple
+
+import numpy as np
 
 TARGETS = ['Tg', 'FFV', 'Tc', 'Density', 'Rg']
 
@@ -51,11 +52,13 @@ def read_trial_results_file(file_name: str) -> Tuple[float, Dict[str, float | in
     return score, params
 
 
-def compile_params_for_framework(fw_name: str) -> None:
+def compile_params_for_framework(fw_name: str) -> Dict[str, float]:
     """ Read all results files for a framework, compile the best params for each target and write
         them to file in a copyable format.
     Args:
         fw_name (str): Name of the framework, used to find the files.
+    Returns:
+        Dict[str, float]: Individual MAE for each target.
     """
     data = {target: {} for target in TARGETS}
     best_scores = {target: 1e6 for target in TARGETS}
@@ -83,6 +86,34 @@ def compile_params_for_framework(fw_name: str) -> None:
     print('Best study indices:')
     print(best_indices)
 
+    return best_scores
+
+
+def calculate_weighted_mae(mae: Dict[str, float]) -> float:
+    """
+    Calculate weighted MAE (wMAE) score according to the competition formula
+    Args:
+        Dict[str, float]: individual MAEs for each target
+    Returns:
+        float: wMAE score
+    """
+    sample_counts = {'Tg': 511, 'FFV': 7030, 'Tc': 737, 'Density': 613, 'Rg': 614}  # train.csv
+    value_ranges = {'Tg': 620.2797376,  # train.csv
+                    'FFV': 0.55010467,
+                    'Tc': 0.47750000000000004,
+                    'Density': 1.092307675,
+                    'Rg': 24.944550504999995}
+
+    # Calculate weights
+    sqrt_inv_n = {t: np.sqrt(1.0 / sample_counts[t]) for t in TARGETS}
+    sum_sqrt_inv_n = sum(sqrt_inv_n.values())
+    weights = {}
+    for target in TARGETS:
+        weights[target] = sum_sqrt_inv_n / value_ranges[target] * len(TARGETS) * sqrt_inv_n[target]
+
+    return sum(weights[t] * mae[t] for t in TARGETS)
+
 
 for framework in ['XGB']:
-    compile_params_for_framework(framework)
+    individual_maes = compile_params_for_framework(framework)
+    print(f"expected wMAE = {calculate_weighted_mae(individual_maes):.4f}")
