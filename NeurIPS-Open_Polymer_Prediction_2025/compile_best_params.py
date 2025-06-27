@@ -51,17 +51,17 @@ def read_trial_results_file(file_name: str) -> Tuple[float, Dict[str, float | in
     return score, params
 
 
-def compile_params_for_framework(framework: str) -> None:
+def compile_params_for_framework(fw_name: str) -> None:
     """ Read all results files for a framework, compile the best params for each target and write
         them to file in a copyable format.
     Args:
-        framework (str): Name of the framework, used to find the files.
+        fw_name (str): Name of the framework, used to find the files.
     """
     data = {target: {} for target in TARGETS}
     best_scores = {target: 1e6 for target in TARGETS}
 
     # read / filter data from file
-    for results_file in glob.glob(f"optuna_{framework}_*_*.txt"):
+    for results_file in glob.glob(f"optuna_{fw_name}_*_*.txt"):
         target_col = results_file.split('_')[2]
         score, params = read_trial_results_file(results_file)
 
@@ -72,7 +72,7 @@ def compile_params_for_framework(framework: str) -> None:
     for param_dict in data.values():
         param_dict.update(OTHER_PARAMS)
 
-    with open(f"best_params_{framework}.txt", 'w', encoding='utf-8') as best_params_file:
+    with open(f"best_params_{fw_name}.txt", 'w', encoding='utf-8') as best_params_file:
         best_params_file.write("params = ")
         best_params_file.write(pformat(data))
 
