@@ -111,9 +111,7 @@ def calculate_weighted_mae(mae: Dict[str, float]) -> float:
     # Calculate weights
     sqrt_inv_n = {t: np.sqrt(1.0 / sample_counts[t]) for t in TARGETS}
     sum_sqrt_inv_n = sum(sqrt_inv_n.values())
-    weights = {}
-    for target in TARGETS:
-        weights[target] = len(TARGETS) * sqrt_inv_n[target] / value_ranges[target] / sum_sqrt_inv_n
+    weights = {t: len(TARGETS) * sqrt_inv_n[t] / value_ranges[t] / sum_sqrt_inv_n for t in TARGETS}
 
     return sum(weights[t] * mae[t] for t in TARGETS)
 
