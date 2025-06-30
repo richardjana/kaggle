@@ -99,7 +99,6 @@ def objective(trial):
     }
 
     kf = KFold(n_splits=N_CV_SPLITS, random_state=42, shuffle=True)
-    mae_scores = []
     oof_preds = np.zeros(train.shape[0])
 
     for train_idx, val_idx in kf.split(train):
@@ -115,9 +114,8 @@ def objective(trial):
                   )
 
         oof_preds[val_idx] = model.predict(X_val_fold)
-        mae_scores.append(mean_absolute_error(y_val_fold, oof_preds[val_idx]))
 
-    return np.mean(mae_scores)
+    return mean_absolute_error(train[TARGET_COL].values, oof_preds)
 
 
 for TARGET_COL in TARGETS:
