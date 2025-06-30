@@ -8,7 +8,11 @@ TARGETS = ['Tg', 'FFV', 'Tc', 'Density', 'Rg']
 
 OTHER_PARAMS = {'tree_method': 'hist',
                 'objective': 'reg:absoluteerror',
-                'eval_metric': 'mae'}
+                'eval_metric': 'mae',
+                'n_estimators': 10_000,
+                'random_state': 77,
+                'use_label_encoder': False,
+                'enable_categorical': False}
 
 
 def convert_numerical(s: str) -> int | float | str:
@@ -109,11 +113,12 @@ def calculate_weighted_mae(mae: Dict[str, float]) -> float:
     sum_sqrt_inv_n = sum(sqrt_inv_n.values())
     weights = {}
     for target in TARGETS:
-        weights[target] = sum_sqrt_inv_n / value_ranges[target] * len(TARGETS) * sqrt_inv_n[target]
+        weights[target] = len(TARGETS) * sqrt_inv_n[target] / value_ranges[target] / sum_sqrt_inv_n
 
     return sum(weights[t] * mae[t] for t in TARGETS)
 
 
 for framework in ['XGB']:
     individual_maes = compile_params_for_framework(framework)
+    print(f"individual MAEs = {individual_maes}")
     print(f"expected wMAE = {calculate_weighted_mae(individual_maes):.4f}")
