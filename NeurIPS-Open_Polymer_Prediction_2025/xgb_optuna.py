@@ -45,7 +45,7 @@ def read_training_data(target_col: str) -> Tuple[pd.DataFrame, List[str]]:
     """
     try:
         train = pd.read_csv('train_rdkit_features.csv')
-        desc_names = list(set(train.columns) - set(TARGETS))
+        desc_names = sorted(set(train.columns) - set(TARGETS))
 
     except (FileNotFoundError, pd.errors.EmptyDataError):
         train = pd.read_csv('train.csv')
@@ -62,7 +62,7 @@ def read_training_data(target_col: str) -> Tuple[pd.DataFrame, List[str]]:
                 'BCUT2D_CHGHI', 'BCUT2D_CHGLO', 'BCUT2D_LOGPHI',
                 'BCUT2D_LOGPLOW', 'BCUT2D_MRHI', 'BCUT2D_MRLOW']
         train = train.drop(columns=cols)
-        desc_names = list(set(desc_names) - set(cols))
+        desc_names = sorted(set(train.columns) - set(TARGETS))
 
         for col in desc_names:  # fix inf and NaN values
             train[col] = train[col].replace([np.inf, -np.inf], np.nan)
@@ -82,6 +82,8 @@ def objective(trial):
         'objective': 'reg:absoluteerror',
         'eval_metric': 'mae',
         'tree_method': 'hist',
+        'n_estimators': 10_000,
+        'random_state': 77,
         'verbosity': 0,
         'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
         'max_depth': trial.suggest_int('max_depth', 3, 20),
@@ -90,7 +92,6 @@ def objective(trial):
         'colsample_bytree': trial.suggest_float('colsample_bytree', 0.3, 1.0),
         'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
-        'n_estimators': 10_000,
         'max_delta_step': trial.suggest_float('max_delta_step', 1e-3, 10, log=True),
         'gamma': trial.suggest_float('gamma', 1e-3, 10, log=True),
         'use_label_encoder': False,
