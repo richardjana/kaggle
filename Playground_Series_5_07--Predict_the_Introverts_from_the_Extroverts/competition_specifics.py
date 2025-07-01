@@ -4,6 +4,8 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
+from sklearn.experimental import enable_iterative_imputer # Required for IterativeImputer
+from sklearn.impute import IterativeImputer
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 
@@ -28,10 +30,10 @@ def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     for cat_col in ['Stage_fear', 'Drained_after_socializing']:
         pd_df[cat_col] = pd_df[cat_col].fillna('unknown').astype('category')
 
-    for num_col in ['Time_spent_Alone',  'Social_event_attendance', 'Going_outside',
-                    'Friends_circle_size', 'Post_frequency']:
-        # .astype('category')#
-        pd_df[num_col] = pd_df[num_col].fillna(pd_df[num_col].median()).astype('int')
+    #for num_col in ['Time_spent_Alone',  'Social_event_attendance', 'Going_outside',
+    #                'Friends_circle_size', 'Post_frequency']:
+    #    # .astype('category')#
+    #    pd_df[num_col] = pd_df[num_col].fillna(pd_df[num_col].median()).astype('int')
 
     return pd_df
 
@@ -86,5 +88,11 @@ def load_preprocess_data() -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoder]:
 
     label_encoder = LabelEncoder()
     train[TARGET_COL] = label_encoder.fit_transform(train[TARGET_COL])
+
+    num_cols = ['Time_spent_Alone',  'Social_event_attendance', 'Going_outside',
+                'Friends_circle_size', 'Post_frequency']
+    imputer = IterativeImputer(max_iter=10, random_state=42)
+    train[num_cols] = imputer.fit_transform(train[num_cols])
+    test[num_cols] = imputer.transform(test[num_cols])
 
     return train, test, label_encoder
