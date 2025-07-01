@@ -73,6 +73,8 @@ def objective(trial):
     for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
         X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
+        #X_train_fold = pd.concat([X_train_fold] * 2, ignore_index=True)
+
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
 
@@ -111,6 +113,8 @@ test_fold_preds = []
 
 for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
     X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
+
+    #X_train_fold = pd.concat([X_train_fold] * 2, ignore_index=True)
 
     y_train_fold = X_train_fold.pop(TARGET_COL)
     y_val_fold = X_val_fold.pop(TARGET_COL)
