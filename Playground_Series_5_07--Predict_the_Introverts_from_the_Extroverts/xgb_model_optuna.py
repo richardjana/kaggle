@@ -49,6 +49,7 @@ ADDITIONAL_PARAMS = {'early_stopping_rounds': 100,
                      'tree_method': 'hist',
                      'use_label_encoder': False,
                      'verbosity': 0,
+                     'scale_pos_weight': 2.8391709844559587
                      }
 
 
@@ -67,6 +68,7 @@ def objective(trial):
     params.update(ADDITIONAL_PARAMS)
 
     oof_preds = np.zeros(len(train))
+    oof_probas = np.zeros((len(train), 2))
 
     for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
         X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
@@ -81,12 +83,10 @@ def objective(trial):
                   )
 
         oof_preds[val_idx] = model.predict(X_val_fold)
+        oof_probas[val_idx, :] = model.predict_proba(X_val_fold)
 
-    # consider scoring trials by other metric:
-    #print(f"accuracy = {accuracy_score(train[TARGET_COL], oof_preds)}")
-    #print(f"auc = {roc_auc_score(train[TARGET_COL], oof_probas[:, 1])}")
-
-    return accuracy_score(oof_preds, train[TARGET_COL])
+    #return accuracy_score(oof_preds, train[TARGET_COL])
+    return roc_auc_score(train[TARGET_COL], oof_probas[:, 1])
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
@@ -97,8 +97,8 @@ best_params.update(ADDITIONAL_PARAMS)
 
 # Print best trial
 print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
-print(f"  accuracy: {study.best_value}")
-print(f"  worst accuracy: {min(trial.value for trial in study.trials if trial.value is not None)}")
+print(f"  AUC: {study.best_value}")
+print(f"  worst AUC: {min(trial.value for trial in study.trials if trial.value is not None)}")
 print('  Best hyperparameters:')
 for key, value in best_params.items():
     print(f"    {key}: {value}")
@@ -137,10 +137,14 @@ joblib.dump({'oof_preds': oof_preds,
 # make prediction for the test data
 make_prediction(test_fold_preds, encoder)
 
+final_accuracy = accuracy_score(train[TARGET_COL], oof_preds)
+final_auc = roc_auc_score(train[TARGET_COL], oof_probas[:, 1])
+print(final_accuracy, final_auc)
+
 plot_confusion_matrix(train[TARGET_COL].to_numpy(), oof_preds.astype(int),
                       'confusion_matrix.png', encoder.classes_)
+
 exit()
-final_accuracy = accuracy_score(train[TARGET_COL], oof_preds)
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
                                  f"XGB optuna {SERIAL_NUMBER} categories ({final_accuracy})")
 print(f"Public score: {public_score}")
