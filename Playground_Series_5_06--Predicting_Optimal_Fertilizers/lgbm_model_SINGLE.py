@@ -53,7 +53,7 @@ def make_prediction(model: lgb.LGBMClassifier, test_df: pd.DataFrame) -> None:
 
 
 # Load dataset
-train, test, encoder = load_preprocess_data()
+train, test, original, encoder = load_preprocess_data()
 
 best_params = {
         'objective': 'multiclass',

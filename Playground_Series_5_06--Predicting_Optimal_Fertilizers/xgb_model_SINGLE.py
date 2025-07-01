@@ -36,7 +36,7 @@ def make_prediction(pred_proba: NDArray) -> None:
     joined_top3 = [' '.join(labels) for labels in top_3_labels]
 
     submit_df[TARGET_COL] = joined_top3
-    submit_df.to_csv('predictions_XGB_optuna.csv',
+    submit_df.to_csv('predictions_XGB_single.csv',
                      columns=['id', TARGET_COL], index=False)
 
 
@@ -51,7 +51,27 @@ NUM_CLASSES = len(encoder.classes_)
 y_original = X_original.pop(TARGET_COL)
 
 
-params = {
+params = {  # Trial 9 finished with value: 0.35059466666666667
+    'objective': 'multi:softprob',
+    'eval_metric': 'mlogloss',
+    'num_class': NUM_CLASSES,
+    'tree_method': 'hist',
+    'learning_rate': 0.00509818088602635,
+    'max_depth': 10,
+    'min_child_weight': 2,
+    'subsample': 0.5593400121621124,
+    'colsample_bytree': 0.5621995908611574,
+    'reg_alpha': 0.0018055823455246688,
+    'reg_lambda': 0.001087171013599893,
+    'n_estimators': 10_000,
+    'max_delta_step': 2.7976064605559205,
+    'gamma': 0.003052341679425709,
+    'use_label_encoder': False,
+    'early_stopping_rounds': 100,
+    'enable_categorical': True
+}
+
+'''params = {
     'objective': 'multi:softprob',
     'eval_metric': 'mlogloss',
     'num_class': NUM_CLASSES,
@@ -69,7 +89,28 @@ params = {
     'use_label_encoder': False,
     'early_stopping_rounds': 100,
     'enable_categorical': True
-}
+}'''
+
+'''params = { # Trial 0 finished with value: 0.3548817777777778
+    'objective': 'multi:softprob',
+    'eval_metric': 'mlogloss',
+    'num_class': NUM_CLASSES,
+    'tree_method': 'hist',
+    'learning_rate': 0.008617227840618023,
+    'max_depth': 15,
+    'min_child_weight': 54,
+    'subsample': 0.5300060402488986,
+    'colsample_bytree': 0.7922798197301854,
+    'reg_alpha': 0.004415275062909041,
+    'reg_lambda': 0.30612613026787033,
+    'n_estimators': 10_000,
+    'max_delta_step': 0.02605743255644592,
+    'gamma': 1.3355982708967837,
+    'use_label_encoder': False,
+    'early_stopping_rounds': 100,
+    'enable_categorical': True
+}'''
+
 
 # Train final model with best parameters
 oof_preds = np.zeros((len(train_full), NUM_CLASSES))
