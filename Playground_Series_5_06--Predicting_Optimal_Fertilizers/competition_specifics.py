@@ -67,19 +67,7 @@ def encode_category_columns(train_df: pd.DataFrame,
     train_df[TARGET_COL] = le.fit_transform(train_df[TARGET_COL])
     original_df[TARGET_COL] = le.transform(original_df[TARGET_COL])
 
-    combined = pd.concat([train_df, test_df, original_df], axis=0)  # for consistent encoding
-
-    categorical_cols = ['Soil Type', 'Crop Type']
-    available_cols = [col for col in categorical_cols if col in train_df.columns]
-
-    combined_encoded = pd.get_dummies(combined, columns=available_cols)
-
-    train_df_encoded = combined_encoded.iloc[:len(train_df), :]
-    test_df_encoded = combined_encoded.iloc[len(train_df):-len(original_df), :]
-    test_df_encoded.drop(columns=[TARGET_COL], inplace=True)
-    original_df_encoded = combined_encoded.iloc[-len(original_df):, :]
-
-    return train_df_encoded, test_df_encoded, original_df_encoded, le
+    return train_df, test_df, original_df, le
 
 
 def add_nutrient_chemistry(df: pd.DataFrame) -> pd.DataFrame:
