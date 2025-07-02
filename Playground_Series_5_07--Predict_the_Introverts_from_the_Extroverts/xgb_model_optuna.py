@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 import optuna
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
@@ -105,14 +106,18 @@ def objective(trial):
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
 
-        model = xgb.XGBClassifier(**params)
-        model.fit(X_train_fold, y_train_fold,
-                  eval_set=[(X_val_fold, y_val_fold)],
-                  verbose=False
-                  )
+        base_model = xgb.XGBClassifier(**params)
+        base_model.fit(X_train_fold, y_train_fold,
+                    eval_set=[(X_val_fold, y_val_fold)],
+                    verbose=False)
 
-        oof_preds[val_idx] = model.predict(X_val_fold)
-        oof_probas[val_idx, :] = model.predict_proba(X_val_fold)
+        calibrated_model = CalibratedClassifierCV(estimator=base_model,
+                                                method='isotonic', cv='prefit')
+        calibrated_model.fit(X_val_fold, y_val_fold)
+
+        oof_preds[val_idx] = calibrated_model.predict(X_val_fold)
+        oof_probas[val_idx, :] = calibrated_model.predict_proba(X_val_fold)
+
 
     #return accuracy_score(oof_preds, train[TARGET_COL])
     return roc_auc_score(train[TARGET_COL], oof_probas[:, 1])
@@ -146,16 +151,19 @@ for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
     y_train_fold = X_train_fold.pop(TARGET_COL)
     y_val_fold = X_val_fold.pop(TARGET_COL)
 
-    model = xgb.XGBClassifier(**best_params)
-    model.fit(X_train_fold, y_train_fold,
-              eval_set=[(X_val_fold, y_val_fold)],
-              verbose=False
-              )
+    base_model = xgb.XGBClassifier(**best_params)
+    base_model.fit(X_train_fold, y_train_fold,
+                   eval_set=[(X_val_fold, y_val_fold)],
+                   verbose=False)
 
-    oof_preds[val_idx] = model.predict(X_val_fold)
-    oof_probas[val_idx, :] = model.predict_proba(X_val_fold)
+    calibrated_model = CalibratedClassifierCV(estimator=base_model,
+                                              method='isotonic', cv='prefit')
+    calibrated_model.fit(X_val_fold, y_val_fold)
 
-    test_fold_preds.append(model.predict(test))
+    oof_preds[val_idx] = calibrated_model.predict(X_val_fold)
+    oof_probas[val_idx, :] = calibrated_model.predict_proba(X_val_fold)
+
+    test_fold_preds.append(calibrated_model.predict(test))
 
 
 # save predictions for ensembling
@@ -174,7 +182,6 @@ print(final_accuracy, final_auc)
 
 plot_confusion_matrix(train[TARGET_COL].to_numpy(), oof_preds.astype(int),
                       'confusion_matrix.png', encoder.classes_)
-
 
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
                                  f"XGB optuna AUC {SERIAL_NUMBER} ({final_accuracy})")
