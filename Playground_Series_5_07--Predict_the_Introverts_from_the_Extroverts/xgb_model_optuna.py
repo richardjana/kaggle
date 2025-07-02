@@ -12,7 +12,6 @@ from sklearn.preprocessing import LabelEncoder
 import xgboost as xgb
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
-from competition_specifics import TARGET_COL, COMPETITION_NAME, load_preprocess_data
 from kaggle_api_functions import submit_prediction
 from kaggle_utilities import plot_confusion_matrix
 
@@ -20,6 +19,30 @@ try:
     SERIAL_NUMBER = sys.argv[1]
 except IndexError:
     SERIAL_NUMBER = 0
+
+COMPETITION_NAME = 'playground-series-s5e7'
+TARGET_COL = 'Personality'
+NUM_COLS = ['Time_spent_Alone',  'Social_event_attendance', 'Going_outside',
+            'Friends_circle_size', 'Post_frequency']
+CAT_COLS = ['Stage_fear', 'Drained_after_socializing']
+
+
+def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
+    """ Apply cleaning operations to pandas DataFrame.
+    Args:
+        pd_df (pd.DataFrame): The DataFrame to clean.
+    Returns:
+        pd.DataFrame: Cleaned DataFrame.
+    """
+    try:
+        pd_df.drop('id', axis=1, inplace=True)
+    except KeyError:
+        pass
+
+    for cat_col in CAT_COLS:
+        pd_df[cat_col] = pd_df[cat_col].fillna('unknown').astype('category')
+
+    return pd_df
 
 
 def make_prediction(test_fold_preds: List[NDArray], encoder: LabelEncoder) -> None:
@@ -36,7 +59,11 @@ def make_prediction(test_fold_preds: List[NDArray], encoder: LabelEncoder) -> No
 
 
 # Load dataset
-train, test, encoder = load_preprocess_data()
+train = clean_data(pd.read_csv('train.csv'))
+test = clean_data(pd.read_csv('test.csv'))
+
+encoder = LabelEncoder()
+train[TARGET_COL] = encoder.fit_transform(train[TARGET_COL])
 
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -92,7 +119,7 @@ def objective(trial):
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=10, timeout=60*60*5)
+study.optimize(objective, n_trials=10_000, timeout=60*60*5)
 
 best_params = study.best_params
 best_params.update(ADDITIONAL_PARAMS)
@@ -130,10 +157,6 @@ for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
 
     test_fold_preds.append(model.predict(test))
 
-    #importances = model.feature_importances_
-    #feature_names = X_train_fold.columns
-    #sorted_features = sorted(zip(importances, feature_names), reverse=True)
-
 
 # save predictions for ensembling
 joblib.dump({'oof_preds': oof_preds,
@@ -152,7 +175,7 @@ print(final_accuracy, final_auc)
 plot_confusion_matrix(train[TARGET_COL].to_numpy(), oof_preds.astype(int),
                       'confusion_matrix.png', encoder.classes_)
 
-exit()
+
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
-                                 f"XGB optuna {SERIAL_NUMBER} ({final_accuracy})")
+                                 f"XGB optuna AUC {SERIAL_NUMBER} ({final_accuracy})")
 print(f"Public score: {public_score}")
