@@ -130,6 +130,10 @@ for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
 
     test_fold_preds.append(model.predict(test))
 
+    #importances = model.feature_importances_
+    #feature_names = X_train_fold.columns
+    #sorted_features = sorted(zip(importances, feature_names), reverse=True)
+
 
 # save predictions for ensembling
 joblib.dump({'oof_preds': oof_preds,
@@ -150,5 +154,5 @@ plot_confusion_matrix(train[TARGET_COL].to_numpy(), oof_preds.astype(int),
 
 exit()
 public_score = submit_prediction(COMPETITION_NAME, 'predictions_XGB_optuna.csv',
-                                 f"XGB optuna {SERIAL_NUMBER} categories ({final_accuracy})")
+                                 f"XGB optuna {SERIAL_NUMBER} ({final_accuracy})")
 print(f"Public score: {public_score}")
