@@ -17,8 +17,6 @@ def clean_data(pd_df: pd.DataFrame) -> pd.DataFrame:
     """ Apply cleaning operations to pandas DataFrame.
     Args:
         pd_df (pd.DataFrame): The DataFrame to clean.
-        drop (bool, optional): If rows should be dropped (option for training DataFrame) or not
-            (test DataFrame). Defaults to True.
     Returns:
         pd.DataFrame: Cleaned DataFrame.
     """
