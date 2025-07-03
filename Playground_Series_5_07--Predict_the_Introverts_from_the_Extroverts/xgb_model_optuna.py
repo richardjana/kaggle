@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 import optuna
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.frozen import FrozenEstimator
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
@@ -101,8 +102,6 @@ def objective(trial):
     for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
         X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
-        #X_train_fold = pd.concat([X_train_fold] * 2, ignore_index=True)
-
         y_train_fold = X_train_fold.pop(TARGET_COL)
         y_val_fold = X_val_fold.pop(TARGET_COL)
 
@@ -111,8 +110,8 @@ def objective(trial):
                     eval_set=[(X_val_fold, y_val_fold)],
                     verbose=False)
 
-        calibrated_model = CalibratedClassifierCV(estimator=base_model,
-                                                method='isotonic', cv='prefit')
+        calibrated_model = CalibratedClassifierCV(estimator=FrozenEstimator(base_model),
+                                                  method='isotonic')
         calibrated_model.fit(X_val_fold, y_val_fold)
 
         oof_preds[val_idx] = calibrated_model.predict(X_val_fold)
@@ -146,8 +145,6 @@ test_fold_preds = []
 for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
     X_train_fold, X_val_fold = train.iloc[train_idx].copy(), train.iloc[val_idx].copy()
 
-    #X_train_fold = pd.concat([X_train_fold] * 2, ignore_index=True)
-
     y_train_fold = X_train_fold.pop(TARGET_COL)
     y_val_fold = X_val_fold.pop(TARGET_COL)
 
@@ -156,8 +153,8 @@ for train_idx, val_idx in skf.split(train, train[TARGET_COL]):
                    eval_set=[(X_val_fold, y_val_fold)],
                    verbose=False)
 
-    calibrated_model = CalibratedClassifierCV(estimator=base_model,
-                                              method='isotonic', cv='prefit')
+    calibrated_model = CalibratedClassifierCV(estimator=FrozenEstimator(base_model),
+                                              method='isotonic')
     calibrated_model.fit(X_val_fold, y_val_fold)
 
     oof_preds[val_idx] = calibrated_model.predict(X_val_fold)
