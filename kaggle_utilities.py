@@ -161,15 +161,16 @@ def min_max_scaler(df_list: List[pd.DataFrame], col_names: List[str]) -> List[pd
     return df_list
 
 
-def RMSE(arr_1: np.ndarray, arr_2: np.ndarray) -> float:
+def RMSE(arr_1: np.ndarray, arr_2: np.ndarray, digits: int = 3) -> float:
     """ Calculate the Root Mean Squared Error (RMSE) between two arrays.
     Args:
         arr_1 (NDArray): First array.
         arr_2 (NDArray): Second array.
+        digits (int): Number of digits for rounding. Defaults to 3.
     Returns:
         float: The RMSE.
     """
-    return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), 3)
+    return round(np.sqrt(np.sum(np.power(arr_1-arr_2, 2))/arr_1.size), digits)
 
 
 def rmsle_metric(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
