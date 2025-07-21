@@ -228,4 +228,5 @@ joblib.dump({'oof_preds': oof_preds,
 
 
 train_full['PREDICTION'] = oof_preds
-make_diagonal_plot(train, target_col=TARGET_COL, metric=RMSE, metric_name='RMSE', fname='diagonal_plot.png')
+make_diagonal_plot(train_full, target_col=TARGET_COL, metric=RMSE,
+                   metric_name='RMSE', fname='diagonal_plot.png')
