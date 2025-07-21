@@ -179,7 +179,7 @@ def objective(trial):
 
         oof_preds[val_idx] = model.predict(X_val_fold)
 
-    return RMSE(train[TARGET_COL], oof_preds)
+    return RMSE(train[TARGET_COL], oof_preds, 6)
 
 
 # Create and optimize Optuna study
