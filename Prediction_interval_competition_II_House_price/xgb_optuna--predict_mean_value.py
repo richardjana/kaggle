@@ -194,7 +194,7 @@ best_params.update(ADDITIONAL_PARAMS)
 # Print best trial
 print(f"Best trial: {study.best_trial.number}/{len(study.trials)}")
 print(f"  RMSE: {study.best_value}")
-print(f"  worst RMSE: {min(trial.value for trial in study.trials if trial.value is not None)}")
+print(f"  worst RMSE: {max(trial.value for trial in study.trials if trial.value is not None)}")
 print('  Best hyperparameters:')
 for key, value in best_params.items():
     print(f"    {key}: {value}")
