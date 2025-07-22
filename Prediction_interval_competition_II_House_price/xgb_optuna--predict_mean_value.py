@@ -178,6 +178,10 @@ def objective(trial):
                     verbose=False)
 
         oof_preds[val_idx] = model.predict(X_val_fold)
+    
+    train['PREDICTION'] = oof_preds
+    make_diagonal_plot(train, target_col=TARGET_COL, metric=RMSE, metric_name='RMSE', fname='diagonal_plot.png')
+    exit()
 
     return RMSE(train[TARGET_COL], oof_preds, 6)
 
@@ -229,4 +233,4 @@ joblib.dump({'oof_preds': oof_preds,
 
 train_full['PREDICTION'] = oof_preds
 make_diagonal_plot(train_full, target_col=TARGET_COL, metric=RMSE,
-                   metric_name='RMSE', fname='diagonal_plot.png')
+                   metric_name='RMSE', fname='diagonal_plot_mean.png')

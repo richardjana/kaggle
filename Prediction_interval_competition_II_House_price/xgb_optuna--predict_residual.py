@@ -228,13 +228,13 @@ ADDITIONAL_PARAMS = {'early_stopping_rounds': 100,
 def objective(trial):
     """ Objective function for Optuna. """
     params = {'colsample_bytree': trial.suggest_float('colsample_bytree', 0.3, 1.0),
-              'gamma': trial.suggest_float('gamma', 1e-3, 10, log=True),
-              'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
-              'max_delta_step': trial.suggest_float('max_delta_step', 1e-3, 10, log=True),
-              'max_depth': trial.suggest_int('max_depth', 3, 20),
-              'min_child_weight': trial.suggest_int('min_child_weight', 1, 100),
+              'gamma': trial.suggest_float('gamma', 1e-3, 1, log=True),
+              'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.03, log=True),
+              'max_delta_step': trial.suggest_float('max_delta_step', 1e-3, 1, log=True),
+              'max_depth': trial.suggest_int('max_depth', 8, 20),
+              'min_child_weight': trial.suggest_int('min_child_weight', 1, 50),
               'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-              'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
+              'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 5.0, log=True),
               'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True)
               }
     params.update(ADDITIONAL_PARAMS)
@@ -315,4 +315,4 @@ make_prediction(test_mean, test_fold_preds, res.x)
 
 train_full['PREDICTION'] = oof_preds
 make_diagonal_plot(train_full, target_col=NEW_TARGET_COL, metric=RMSE,
-                   metric_name='RMSE', fname='diagonal_plot.png')
+                   metric_name='RMSE', fname='diagonal_plot_residual.png')
