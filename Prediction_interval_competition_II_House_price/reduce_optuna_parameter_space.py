@@ -7,13 +7,16 @@ import optuna
 import pandas as pd
 import seaborn as sns
 
+try:
+    TYPE = sys.argv[1]
+except IndexError:
+    TYPE = 'mean'  # or 'residual'
+
 ### load studies and extract completed trials into combined DataFrame
 all_dfs = []
-#for study_file in glob('*/optuna_study_mean.db'):
-for study_file in glob('*/optuna_study_residual.db'):
+for study_file in glob(f"*/optuna_study_{TYPE}.db"):
     study = optuna.load_study(storage=f"sqlite:///{study_file}",
-                              study_name='house_price_residual')
-                              #study_name='house_price_mean')
+                              study_name=f"house_price_{TYPE}")
 
     study_df = study.trials_dataframe(attrs=('number', 'value', 'params', 'state'))
     study_df['source'] = study_file.split('/')[0].split('--')[1]  # add source
@@ -34,13 +37,13 @@ TOP_PCT = 0.5  # filter top-performing trials
 n_top = int(len(df) * TOP_PCT)
 top_df = df.head(n_top)
 
-# --- Step 4: Iterate through parameters and plot distributions ---
-
+### iterate through parameters and plot distributions
 for param in params_cols_map.values():
     if pd.api.types.is_numeric_dtype(top_df[param]):
         plt.figure(figsize=(8, 4))
         sns.histplot(df[param], kde=True, bins=20, color='lightgray', label='All trials', alpha=0.5)
-        sns.histplot(top_df[param], kde=True, bins=20, color='blue', label=f"Top {TOP_PCT*100:.0f}%")
+        sns.histplot(top_df[param], kde=True, bins=20, color='blue',
+                     label=f"Top {TOP_PCT*100:.0f}%")
         plt.title(f"Distribution of '{param}'\n(All Trials vs. Top {TOP_PCT*100:.0f}%)")
         plt.xlabel(param)
         plt.ylabel("Frequency")
