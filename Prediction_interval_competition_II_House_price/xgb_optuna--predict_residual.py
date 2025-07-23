@@ -198,7 +198,7 @@ test_mean = data['test_preds']
 
 # Load dataset, replace original TAREGT_COL with residual
 train_full = clean_data(pd.read_csv('dataset.csv'))
-train_full[NEW_TARGET_COL] = (train_full[TARGET_COL] - data['oof_preds']) ** 2
+train_full[NEW_TARGET_COL] = np.log1p((train_full[TARGET_COL] - data['oof_preds']) ** 2)
 train_full['predicted_mean'] = data['oof_preds']
 test = clean_data(pd.read_csv('test.csv'))
 
@@ -252,9 +252,9 @@ def objective(trial):
                     eval_set=[(X_val_fold, y_val_fold)],
                     verbose=False)
 
-        oof_preds[val_idx] = model.predict(X_val_fold)
-    
-    oof_preds = np.maximum(oof_preds, 0)
+        oof_preds[val_idx] = np.expm1(model.predict(X_val_fold))
+
+    oof_preds = np.clip(oof_preds, 1e-6, None)
 
     return minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
                            args=(train_mean, train_mean_predicted, oof_preds)).fun
@@ -294,11 +294,11 @@ for train_idx, val_idx in kf.split(train_full, train_full[NEW_TARGET_COL]):
               eval_set=[(X_val_fold, y_val_fold)],
               verbose=False)
 
-    oof_preds[val_idx] = model.predict(X_val_fold)
-    test_fold_preds.append(model.predict(test))
+    oof_preds[val_idx] = np.expm1(model.predict(X_val_fold))
+    test_fold_preds.append(np.expm1(model.predict(test)))
 
-oof_preds = np.maximum(oof_preds, 0)
-test_fold_preds = np.maximum(test_fold_preds, 0)
+oof_preds = np.clip(oof_preds, 1e-6, None)
+test_fold_preds = np.clip(test_fold_preds, 1e-6, None)
 
 res = minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
                       args=(train_full_mean, train_full_mean_predicted, oof_preds))
