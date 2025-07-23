@@ -253,7 +253,8 @@ def objective(trial):
                     verbose=False)
 
         oof_preds[val_idx] = model.predict(X_val_fold)
-        oof_preds = np.maximum(oof_preds, 0)
+    
+    oof_preds = np.maximum(oof_preds, 0)
 
     return minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
                            args=(train_mean, train_mean_predicted, oof_preds)).fun
@@ -294,9 +295,9 @@ for train_idx, val_idx in kf.split(train_full, train_full[NEW_TARGET_COL]):
               verbose=False)
 
     oof_preds[val_idx] = model.predict(X_val_fold)
-    oof_preds = np.maximum(oof_preds, 0)
     test_fold_preds.append(model.predict(test))
 
+oof_preds = np.maximum(oof_preds, 0)
 test_fold_preds = np.maximum(test_fold_preds, 0)
 
 res = minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
