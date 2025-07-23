@@ -17,19 +17,6 @@ import seaborn as sns
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_utilities import RMSE
 
-# strategy: take the predictions from the previous step and predict the residual here
-# from the residual and the mean value, construct the interval by optimizing the Winkler score on γ
-# [mean - γ * sqrt(predicted_error), mean + γ * sqrt(predicted_error)]
-
-# transform target with np.log1p ? -> np.expm1(preds)
-
-# optional validation strategy: exclude the newest part of the data from training and use it only
-# for extra validation --- this is meant to model that the test data contains rows that are newer
-# than all the training data
-
-# for 1-step prediction:
-# LGBM: objective='quantile', alpha=0.95
-# XGB: custom loss function
 
 COMPETITION_NAME = 'prediction-interval-competition-ii-house-price'
 TARGET_COL = 'sale_price'
@@ -69,17 +56,13 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df['land_val'] = np.log1p(df['land_val'])
     df['imp_val'] = np.log1p(df['imp_val'])
 
-    #df['val_ratio'] = df['land_val']/df['imp_val']
-    df['pct_A'] = np.where((df['land_val'] + df['imp_val']) != 0, df['land_val'] / (df['land_val'] + df['imp_val']), 0.5)
+    df['pct_A'] = np.where((df['land_val'] + df['imp_val']) != 0,
+                           df['land_val'] / (df['land_val'] + df['imp_val']), 0.5)
     df['total_baths'] = df['bath_full'] + 0.75*df['bath_3qtr'] + 0.5*df['bath_half']
-    #df['bath_to_beds'] = df['total_baths'] / df['beds']  # both can be 0
-
-    # compare year renovated to year of sale or something?
-    # age of the house at sale?
 
     df.drop('sale_nbr', axis=1, inplace=True)
 
-    for col in ['submarket', 'subdivision']:  # unclear if this does anything
+    for col in ['submarket', 'subdivision']:
         df[col] = df[col].fillna('unknown').astype('category')
 
     try:
