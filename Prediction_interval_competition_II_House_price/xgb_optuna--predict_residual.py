@@ -65,11 +65,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     for col in ['submarket', 'subdivision']:
         df[col] = df[col].fillna('unknown').astype('category')
 
-    try:
-        df['sale_price'] = np.log1p(df['sale_price'])
-    except KeyError:
-        pass
-
     return df
 
 
@@ -84,7 +79,6 @@ def make_prediction(test_means: NDArray, test_fold_preds: List[NDArray], gamma: 
     submit_df = pd.read_csv('sample_submission.csv')
     submit_df['pi_lower'] = test_means - gamma * np.sqrt(np.mean(test_fold_preds, axis=0))
     submit_df['pi_upper'] = test_means + gamma * np.sqrt(np.mean(test_fold_preds, axis=0))
-    submit_df[['pi_lower', 'pi_upper']] = submit_df[['pi_lower', 'pi_upper']].apply(np.expm1)
     submit_df.to_csv('predictions_XGB_optuna--interval.csv',
                      columns=['id', 'pi_lower', 'pi_upper'], index=False)
 
@@ -243,7 +237,7 @@ def objective(trial):
     res = minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
                            args=(train_mean, train_mean_predicted, oof_preds))
 
-    return np.expm1(res.fun)
+    return res.fun
 
 
 # Create and optimize Optuna study
@@ -288,7 +282,7 @@ test_fold_preds = np.clip(test_fold_preds, 1e-6, None)
 
 res = minimize_scalar(winkler_for_gamma, bounds=(0.1, 10.0), method='bounded',
                       args=(train_full_mean, train_full_mean_predicted, oof_preds))
-print(f"Final Winkler score {np.expm1(res.fun):.5f} ({res.fun:.5f}), with gamma {res.x:.5f}")
+print(f"Final Winkler score {res.fun:.5f}, with gamma {res.x:.5f}")
 
 # save predictions for ensembling
 joblib.dump({'oof_preds': oof_preds,

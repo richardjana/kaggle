@@ -163,7 +163,7 @@ def objective(trial):
 
         oof_preds[val_idx] = model.predict(X_val_fold)
 
-    return RMSE(train[TARGET_COL], oof_preds, 6)
+    return RMSE(np.expm1(train[TARGET_COL]), np.expm1(oof_preds), 6)
 
 
 # Create and optimize Optuna study
@@ -202,6 +202,9 @@ for train_idx, val_idx in kf.split(train_full, train_full[TARGET_COL]):
     oof_preds[val_idx] = model.predict(X_val_fold)
     test_fold_preds.append(model.predict(test))
 
+oof_preds = np.expm1(oof_preds)
+test_fold_preds = np.expm1(test_fold_preds)
+train_full[TARGET_COL] = np.expm1(train_full[TARGET_COL])
 
 # save predictions for ensembling
 joblib.dump({'oof_preds': oof_preds,
