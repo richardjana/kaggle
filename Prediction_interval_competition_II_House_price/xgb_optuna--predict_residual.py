@@ -205,15 +205,15 @@ ADDITIONAL_PARAMS = {'early_stopping_rounds': 100,
 
 def objective(trial):
     """ Objective function for Optuna. """
-    params = {'colsample_bytree': trial.suggest_float('colsample_bytree', 0.3, 1.0),
+    params = {'colsample_bytree': trial.suggest_float('colsample_bytree', 0.2, 0.6),
               'gamma': trial.suggest_float('gamma', 1e-3, 1, log=True),
-              'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.03, log=True),
-              'max_delta_step': trial.suggest_float('max_delta_step', 1e-3, 1, log=True),
-              'max_depth': trial.suggest_int('max_depth', 8, 20),
-              'min_child_weight': trial.suggest_int('min_child_weight', 1, 50),
-              'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-              'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 5.0, log=True),
-              'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True)
+              'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.0075, log=True),
+              'max_delta_step': trial.suggest_float('max_delta_step', 0.3, 1, log=True),
+              'max_depth': trial.suggest_int('max_depth', 6, 20),
+              'min_child_weight': trial.suggest_int('min_child_weight', 10, 50),
+              'subsample': trial.suggest_float('subsample', 0.65, 0.9),
+              'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 2.0, log=True),
+              'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 1.0, log=True)
               }
     params.update(ADDITIONAL_PARAMS)
 
