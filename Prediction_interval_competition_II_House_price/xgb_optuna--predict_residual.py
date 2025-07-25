@@ -295,5 +295,6 @@ joblib.dump({'oof_preds': oof_preds,
 make_prediction(test_mean, test_fold_preds, res.x)
 
 train_full['PREDICTION'] = oof_preds
+train_full[NEW_TARGET_COL] = np.expm1(train_full[NEW_TARGET_COL])
 make_diagonal_plot(train_full, target_col=NEW_TARGET_COL, metric=RMSE,
                    metric_name='RMSE', fname='diagonal_plot_residual.png')
