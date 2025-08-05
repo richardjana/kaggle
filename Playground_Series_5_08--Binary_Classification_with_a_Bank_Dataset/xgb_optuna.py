@@ -29,7 +29,7 @@ def make_prediction(pipeline: Pipeline, test_df: pd.DataFrame) -> None:
     """
     submit_df = pd.read_csv('sample_submission.csv')
 
-    submit_df[TARGET_COL] = pipeline.predict(test_df)
+    submit_df[TARGET_COL] = pipeline.predict_proba(test_df)[:, 1]
     submit_df.to_csv('predictions_XGB_optuna.csv',
                      columns=['id', TARGET_COL], index=False)
 
