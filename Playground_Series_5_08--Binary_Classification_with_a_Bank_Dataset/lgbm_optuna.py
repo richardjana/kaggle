@@ -152,7 +152,7 @@ def objective(trial):
         # Fit preprocessor on training fold
         X_train_fold_transformed = pd.DataFrame(preprocessor.fit_transform(X_train_fold),
                                                 columns=preprocessor.get_feature_names_out())
-        X_valid_fold_transformed = pd.DataFrame(preprocessor.fit_transform(X_valid_fold),
+        X_valid_fold_transformed = pd.DataFrame(preprocessor.transform(X_valid_fold),
                                                 columns=preprocessor.get_feature_names_out())
 
         # Train model
