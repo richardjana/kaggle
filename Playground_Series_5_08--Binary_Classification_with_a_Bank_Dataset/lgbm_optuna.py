@@ -105,16 +105,6 @@ cyclical_cols = ['day', 'month']
 cyclical_max = {'month': 12, 'day': 31}
 cyclical_encoder = CyclicalEncoder(cols=cyclical_cols, max_values=cyclical_max)
 
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('cyclical', cyclical_encoder, cyclical_cols),
-        ('scale', StandardScaler(), normal_cols),
-        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
-        ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
-    ],
-    remainder='passthrough'
-)
-
 
 ADDITIONAL_PARAMS = {'objective': 'binary',
                      'metric': 'auc',
@@ -149,6 +139,16 @@ def objective(trial):
         X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
         y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
 
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('cyclical', cyclical_encoder, cyclical_cols),
+                ('scale', StandardScaler(), normal_cols),
+                ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
+                ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
+            ],
+            remainder='passthrough'
+        )
+
         # Fit preprocessor on training fold
         X_train_fold_transformed = pd.DataFrame(preprocessor.fit_transform(X_train_fold),
                                                 columns=preprocessor.get_feature_names_out())
@@ -180,7 +180,6 @@ study = optuna.create_study(direction='maximize',
 study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 
-
 # Train final model with best parameters
 y_train_full = X_train_full.pop(TARGET_COL)
 
@@ -188,6 +187,16 @@ best_params = study.best_params
 best_params.update(ADDITIONAL_PARAMS)
 best_params['n_estimators'] = study.best_trial.user_attrs.get('n_estimators')
 del best_params['early_stopping_rounds']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('cyclical', cyclical_encoder, cyclical_cols),
+        ('scale', StandardScaler(), normal_cols),
+        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
+        ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
+    ],
+    remainder='passthrough'
+)
 
 pipe = Pipeline([
         ('preprocessor', preprocessor),
