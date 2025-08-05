@@ -176,7 +176,7 @@ def objective(trial):
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize',
                             study_name='banking',
-                            storage='sqlite:///optuna_study.db')
+                            storage='sqlite:///optuna_study_lgbm.db')
 study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 
