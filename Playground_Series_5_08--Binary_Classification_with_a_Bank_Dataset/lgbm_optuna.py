@@ -35,6 +35,7 @@ def make_prediction(pipeline: Pipeline, test_df: pd.DataFrame) -> None:
 
 
 class CyclicalEncoder(BaseEstimator, TransformerMixin):
+    """ Encode cyclic column, like day of the month etc. """
     def __init__(self, cols=None, max_values=None):
         """
         cols: list of column names to encode
@@ -143,7 +144,8 @@ def objective(trial):
             transformers=[
                 ('cyclical', cyclical_encoder, cyclical_cols),
                 ('scale', StandardScaler(), normal_cols),
-                ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
+                ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
+                 categorical_cols),
                 ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
             ],
             remainder='passthrough'
@@ -168,7 +170,9 @@ def objective(trial):
         aucs.append(roc_auc_score(y_valid_fold, pred_probas))
         best_iteration_folds.append(model.best_iteration_)
 
-    trial.set_user_attr('n_estimators', int(np.mean(best_iteration_folds)*np.sqrt(1/OPTUNA_FRAC)))
+    trial.set_user_attr('n_estimators', int(np.mean(best_iteration_folds)
+                                            *np.sqrt(1/OPTUNA_FRAC)
+                                            *np.sqrt(1/0.8)))
 
     return np.mean(aucs)
 
