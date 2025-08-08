@@ -66,10 +66,11 @@ class CyclicalEncoder(BaseEstimator, TransformerMixin):
         return np.array(feature_names)
 
 
-def load_and_prepare(file_name: str) -> pd.DataFrame:
+def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
     """ Read data from csv file and do some basic preprocessing.
     Args:
         file_name (str): Name of the csv file.
+        sep (str): Separator for read_csv.
     Returns:
         pd.DataFrame: The created DataFrame.
     """
@@ -78,8 +79,11 @@ def load_and_prepare(file_name: str) -> pd.DataFrame:
              'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
              }
 
-    df = pd.read_csv(file_name)
-    df.drop(columns='id', inplace=True)
+    df = pd.read_csv(file_name, sep=sep)
+    try:  # train and test
+        df.drop(columns='id', inplace=True)
+    except KeyError:  # original data
+        df['y'] = df['y'].map({'no': 0, 'yes': 1})
     df['month'] = df['month'].map(month_map)
 
     obj_cols = df.select_dtypes(include='object').columns
@@ -88,9 +92,30 @@ def load_and_prepare(file_name: str) -> pd.DataFrame:
     return df
 
 
+def merge_in_original_data(df: pd.DataFrame, original: pd.DataFrame) -> pd.DataFrame:
+    """ Use original data to add more features - in a way of target encoding.
+    Args:
+        df (pd.DataFrame): DataFrame, train or test, to add new columns to.
+        original (pd.DataFrame): Full original data frame.
+    Returns:
+        pd.DataFrame: _description_
+    """
+    mean_target = original[TARGET_COL].mean()
+    for col in [col for col in df.columns if col != TARGET_COL]:
+        new = f"{col}_orig"
+        df[new] = df[col].map(original.groupby(col, observed=True)[TARGET_COL].mean()).astype(float)
+        df[new] = df[new].fillna(mean_target)
+
+    return df
+
+
 # Load dataset
 X_train_full = load_and_prepare('train.csv')
 X_test = load_and_prepare('test.csv')
+orig = load_and_prepare('bank-full.csv', sep=';')
+
+X_train_full = merge_in_original_data(X_train_full, orig)
+X_test = merge_in_original_data(X_test, orig)
 
 _, X_train = train_test_split(X_train_full, test_size=OPTUNA_FRAC, random_state=42)
 
