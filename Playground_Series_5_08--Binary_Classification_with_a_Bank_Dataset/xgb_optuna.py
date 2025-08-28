@@ -173,14 +173,16 @@ def objective(trial):
                 ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
                  categorical_cols),
                 ('power', PowerTransformer(method='yeo-johnson'), skewed_cols),
-                ('month_target', ce.TargetEncoder(cols=['month']), ['month']),
-                ('month_count', ce.CountEncoder(cols=['month']), ['month']),
+                ('month_target', Pipeline([('target',
+                                            ce.TargetEncoder(cols=['month']))]), ['month']),
+                ('month_count', Pipeline([('count', ce.CountEncoder(cols=['month']))]), ['month'])
             ],
             remainder='passthrough'
         )
 
         # Fit preprocessor on training fold
-        X_train_fold_transformed = pd.DataFrame(preprocessor.fit_transform(X_train_fold),
+        X_train_fold_transformed = pd.DataFrame(preprocessor.fit_transform(X_train_fold,
+                                                                           y_train_fold),
                                                 columns=preprocessor.get_feature_names_out())
         X_valid_fold_transformed = pd.DataFrame(preprocessor.transform(X_valid_fold),
                                                 columns=preprocessor.get_feature_names_out())
@@ -224,7 +226,9 @@ preprocessor = ColumnTransformer(
         ('cyclical', cyclical_encoder, cyclical_cols),
         ('scale', StandardScaler(), normal_cols),
         ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
-        ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
+        ('power', PowerTransformer(method='yeo-johnson'), skewed_cols),
+        ('month_target', Pipeline([('target', ce.TargetEncoder(cols=['month']))]), ['month']),
+        ('month_count', Pipeline([('count', ce.CountEncoder(cols=['month']))]), ['month'])
     ],
     remainder='passthrough'
 )
