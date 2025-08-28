@@ -1,5 +1,6 @@
 import sys
 
+import category_encoders as ce
 import numpy as np
 import optuna
 import pandas as pd
@@ -171,7 +172,9 @@ def objective(trial):
                 ('scale', StandardScaler(), normal_cols),
                 ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False),
                  categorical_cols),
-                ('power', PowerTransformer(method='yeo-johnson'), skewed_cols)
+                ('power', PowerTransformer(method='yeo-johnson'), skewed_cols),
+                ('month_target', ce.TargetEncoder(cols=['month']), ['month']),
+                ('month_count', ce.CountEncoder(cols=['month']), ['month']),
             ],
             remainder='passthrough'
         )
