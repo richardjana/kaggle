@@ -5,7 +5,7 @@ import optuna
 import pandas as pd
 from xgboost import XGBRegressor
 
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold
 from sklearn.metrics import root_mean_squared_error
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
@@ -13,9 +13,7 @@ from kaggle_api_functions import submit_prediction
 
 TARGET_COL = 'BeatsPerMinute'
 COMPETITION_NAME = 'playground-series-s5e9'
-
-OPTUNA_FRAC = 0.25
-
+N_FOLDS = 5
 
 def make_prediction(model: XGBRegressor, test_df: pd.DataFrame) -> None:
     """ Make a prediction for the test data, with a given model.
@@ -48,11 +46,9 @@ def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
 
 
 # Load dataset
-X_train_full = load_and_prepare('train.csv')
+X_train = load_and_prepare('train.csv')
 X_test = load_and_prepare('test.csv')
-orig = load_and_prepare('original.csv', sep=';')
-
-_, X_train = train_test_split(X_train_full, test_size=OPTUNA_FRAC, random_state=42)
+#orig = load_and_prepare('original.csv', sep=';')
 
 y_train = X_train.pop(TARGET_COL)
 
@@ -63,11 +59,11 @@ ADDITIONAL_PARAMS = {'objective': 'reg:squarederror',
                      'random_state': 77,
                      'n_estimators': 10_000,
                      'early_stopping_rounds': 100,
-                     'enable_categorical': False
+                     'enable_categorical': True
                      }
 
 
-kf = KFold(n_splits=5, shuffle=True, random_state=42)
+kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
 # Define objective function for Optuna
 def objective(trial):
     params = {'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
@@ -102,8 +98,7 @@ def objective(trial):
         best_iteration_folds.append(model.best_iteration)
 
     trial.set_user_attr('n_estimators', int(np.mean(best_iteration_folds)
-                                            *np.sqrt(1/OPTUNA_FRAC)
-                                            *np.sqrt(1/0.8)))
+                                            *np.sqrt(N_FOLDS/(N_FOLDS-1))))
 
     return np.mean(rmses)
 
@@ -116,8 +111,6 @@ study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 
 # Train final model with best parameters
-y_train_full = X_train_full.pop(TARGET_COL)
-
 best_params = study.best_params
 best_params.update(ADDITIONAL_PARAMS)
 best_params['n_estimators'] = study.best_trial.user_attrs.get('n_estimators')
@@ -125,7 +118,7 @@ del best_params['early_stopping_rounds']
 
 
 model = XGBRegressor(**best_params)
-model.fit(X_train_full, y_train_full, verbose=False)
+model.fit(X_train, y_train, verbose=False)
 
 # make prediction for the test data
 make_prediction(model, X_test)
