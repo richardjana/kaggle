@@ -10,6 +10,7 @@ PATTERN = sys.argv[1]
 TOP_PCT = [0.50, 0.25, 0.10]
 COLORS = ['red', 'green', 'blue']
 ALPHAS = [0.50, 0.75, 1.0]
+N_BINS = 50
 
 ### load studies and extract completed trials into combined DataFrame
 all_dfs = []
@@ -40,26 +41,44 @@ top_dfs = {tp: df.head(int(len(df)*tp)) for tp in TOP_PCT}
 ### iterate through parameters and plot distributions
 for param in params_cols_map.values():
     if pd.api.types.is_numeric_dtype(df[param]):
-        N_BINS = 50
+        unique_vals = df[param].unique()
+        is_discrete = len(unique_vals) <= N_BINS
+
         plt.figure(figsize=(8, 4))
 
-        # Bin all data
-        bins = np.linspace(df[param].min(), df[param].max(), N_BINS + 1)
-        df['bin'] = pd.cut(df[param], bins=bins, include_lowest=True)
+        if is_discrete:
+            sorted_vals = sorted(unique_vals)
 
-        for tp, color, alpha in zip(TOP_PCT, COLORS, ALPHAS):
-            top_df = top_dfs[tp].copy()
-            top_df['bin'] = pd.cut(top_df[param], bins=bins, include_lowest=True)
+            total_counts = df[param].value_counts().sort_index()
+            for tp, color, alpha in zip(TOP_PCT, COLORS, ALPHAS):
+                top_counts = top_dfs[tp][param].value_counts().sort_index()
+                frac_good = (top_counts / total_counts).reindex(sorted_vals, fill_value=0)
 
-            # Group and compute fraction of good trials in each bin
-            bin_counts = df['bin'].value_counts().sort_index()
-            bin_top_counts = top_df['bin'].value_counts().sort_index()
-            fraction_good = (bin_top_counts / bin_counts).fillna(0)
+                plt.plot(sorted_vals, frac_good.values, 'o:', label=f"Top {tp*100:.0f}%", 
+                        color=color, alpha=alpha)
 
-            bin_centers = [interval.mid for interval in fraction_good.index]
+            plt.xlabel(param)
+            plt.xticks(sorted_vals)
 
-            plt.plot(bin_centers, fraction_good.values, 'o:', label=f"Top {tp*100:.0f}%",
-                     color=color, alpha=alpha)
+        else:
+            bins = np.linspace(df[param].min(), df[param].max(), N_BINS + 1)
+            df['bin'] = pd.cut(df[param], bins=bins, include_lowest=True)
+
+            for tp, color, alpha in zip(TOP_PCT, COLORS, ALPHAS):
+                top_df = top_dfs[tp].copy()
+                top_df['bin'] = pd.cut(top_df[param], bins=bins, include_lowest=True)
+
+                bin_counts = df['bin'].value_counts().sort_index()
+                bin_top_counts = top_df['bin'].value_counts().sort_index()
+                frac_good = (bin_top_counts / bin_counts).fillna(0)
+
+                bin_centers = [interval.mid for interval in frac_good.index]
+                plt.plot(bin_centers, frac_good.values, 'o:', label=f"Top {tp*100:.0f}%", 
+                        color=color, alpha=alpha)
+
+            plt.xlabel(param)
+            df.drop(columns='bin', inplace=True)
+
 
         x_min, x_max = plt.xlim()
         plt.xlim(x_min, x_max)
@@ -67,11 +86,8 @@ for param in params_cols_map.values():
         for tp, color, alpha in zip(TOP_PCT, COLORS, ALPHAS):
             plt.plot([x_min, x_max], [tp, tp], '-', color=color)
 
-        plt.title(f"Fraction of Good Trials vs. '{param}'")
         plt.xlabel(param)
         plt.ylabel('Fraction of Good Trials')
-        plt.ylim(0, 1.05)
-        plt.grid(True)
         plt.legend()
         plt.tight_layout()
 
