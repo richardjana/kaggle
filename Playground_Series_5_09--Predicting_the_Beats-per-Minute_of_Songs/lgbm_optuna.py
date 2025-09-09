@@ -57,10 +57,33 @@ def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
     return df
 
 
+def target_encode_with_original_data(df: pd.DataFrame, orig: pd.DataFrame) -> pd.DataFrame:
+    """ Use the original data for a type of target encoding.
+    Args:
+        df (pd.DataFrame): DataFrame to add the TE to.
+        orig (pd.DataFrame): The original data.
+    Returns:
+        pd.DataFrame: DataFrame with added columns.
+    """
+    for col in [c for c in df.columns if c != TARGET_COL]:
+        te_col = f"TEO_{col}"
+
+        tmp_df = orig.groupby(col)[TARGET_COL].mean()
+        tmp_df.name = te_col
+        df = df.merge(tmp_df, on=col, how='left')
+
+        df[te_col] = df[te_col].fillna(orig[TARGET_COL].mean())
+
+    return df
+
+
 # Load dataset
 X_train = load_and_prepare('train.csv')
 X_test = load_and_prepare('test.csv')
-#orig = load_and_prepare('original.csv', sep=';')
+orig = load_and_prepare('original.csv', sep=';')
+
+X_train = target_encode_with_original_data(X_train, orig)
+X_test = target_encode_with_original_data(X_test, orig)
 
 y_train = X_train.pop(TARGET_COL)
 
