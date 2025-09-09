@@ -43,8 +43,16 @@ def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
     except KeyError:  # original data
         pass
 
-    # treat all features as categorical
-    df = df = df.astype({col: 'category' for col in df.columns if col != TARGET_COL})
+    # FE ideas adopted from Chris Deotte
+    for col in ['Energy', 'MoodScore', 'AcousticQuality']:
+        for digit in range(1,10):
+            df[f"{col}_d{digit}"] = ((df[col] * 10**digit) % 10).fillna(-1).astype('int8')
+
+    for col in ['RhythmScore', 'AudioLoudness', 'VocalContent', 'AcousticQuality',
+                'InstrumentalScore', 'LivePerformanceLikelihood', 'MoodScore',
+                'TrackDurationMs', 'Energy']:
+        for decimals in [8, 9]:
+            df[f"{col}_r{decimals}"] = df[col].round(decimals)
 
     return df
 
