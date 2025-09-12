@@ -79,7 +79,7 @@ def target_encode_with_original_data(df: pd.DataFrame, orig: pd.DataFrame) -> pd
 # Load dataset
 X_train = load_and_prepare('train.csv')
 X_test = load_and_prepare('test.csv')
-orig = load_and_prepare('original.csv', sep=';')
+orig = load_and_prepare('original.csv')
 
 X_train = target_encode_with_original_data(X_train, orig)
 X_test = target_encode_with_original_data(X_test, orig)
