@@ -16,18 +16,6 @@ TARGET_COL = 'BeatsPerMinute'
 COMPETITION_NAME = 'playground-series-s5e9'
 N_FOLDS = 5
 
-def make_prediction(model: LGBMRegressor, test_df: pd.DataFrame) -> None:
-    """ Make a prediction for the test data, with a given model.
-    Args:
-        modle (XGBRegressor): Model used for the prediction.
-        test_df (pd.DataFrame): DataFrame with the test data.
-    """
-    submit_df = pd.read_csv('sample_submission.csv')
-
-    submit_df[TARGET_COL] = model.predict(test_df)
-    submit_df.to_csv('predictions_LGBM_optuna.csv',
-                     columns=['id', TARGET_COL], index=False)
-
 
 def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
     """ Read data from csv file and do some basic preprocessing.
@@ -113,7 +101,6 @@ def objective(trial):
 
     # Cross-validation
     rmses = []
-    best_iteration_folds = []
     for train_idx, valid_idx in kf.split(X_train, y_train):
         X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
         y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
@@ -128,10 +115,6 @@ def objective(trial):
         # Predict and evaluate
         pred = model.predict(X_valid_fold)
         rmses.append(root_mean_squared_error(y_valid_fold, pred))
-        best_iteration_folds.append(model.best_iteration_)
-
-    trial.set_user_attr('n_estimators', int(np.mean(best_iteration_folds)
-                                            *np.sqrt(N_FOLDS/(N_FOLDS-1))))
 
     return np.mean(rmses)
 
@@ -146,16 +129,33 @@ study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 # Train final model with best parameters
 best_params = study.best_params
 best_params.update(ADDITIONAL_PARAMS)
-best_params['n_estimators'] = study.best_trial.user_attrs.get('n_estimators')
-del best_params['early_stopping_rounds']
 
 
-model = LGBMRegressor(**best_params)
-model.fit(X_train, y_train)
+oof_preds = np.zeros(len(X_train))
+test_fold_preds = []
+for train_idx, valid_idx in kf.split(X_train, y_train):
+    X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
+    y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
 
-# make prediction for the test data
-make_prediction(model, X_test)
+    model = LGBMRegressor(**best_params)
+    model.fit(X_train_fold, y_train_fold,
+              eval_set=[(X_valid_fold, y_valid_fold)],
+              eval_metric='rmse')
 
-public_score = submit_prediction(COMPETITION_NAME, 'predictions_LGBM_optuna.csv',
+    oof_preds[valid_idx] = model.predict(X_valid_fold)
+
+    test_fold_preds.append(model.predict(X_test))
+
+
+# write files for ensembling
+OOF_DF = pd.DataFrame({'y_true': y_train, 'oof': oof_preds})
+OOF_DF.to_csv('oof.csv', index=False)
+
+submit_df = pd.read_csv('sample_submission.csv')
+submit_df[TARGET_COL] = np.mean(np.array(test_fold_preds), axis=0).astype(float)
+submit_df.to_csv('predictions_optuna.csv', columns=['id', TARGET_COL], index=False)
+
+# submit to kaggle
+public_score = submit_prediction(COMPETITION_NAME, 'predictions_optuna.csv',
                                  f"LGBM optuna ({study.best_value})")
 print(f'Public score: {public_score}')
