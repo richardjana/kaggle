@@ -1,5 +1,6 @@
 import sys
 
+from itertools import combinations
 from lightgbm import LGBMRegressor
 import numpy as np
 import optuna
@@ -35,6 +36,20 @@ def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
 
     for cat_col in ['road_type', 'lighting', 'weather', 'time_of_day']:
         df[cat_col] = df[cat_col].astype('category')
+
+    # frequency encoding
+    for col in ['road_type', 'lighting', 'weather', 'time_of_day']+['road_signs_present', 'public_road', 'holiday', 'school_season']:
+        value_counts = df[col].value_counts()
+        df[f"{col}_freq"] = df[col].map(value_counts)
+
+    # feature interaction
+    for col1, col2 in combinations(['num_lanes', 'curvature', 'speed_limit', 'num_reported_accidents'], 2):
+        df[f'{col1}_mul_{col2}'] = df[col1] * df[col2]
+        df[f'{col1}_div_{col2}'] = df[col1] / (df[col2].replace(0, np.nan))
+        df[f'{col2}_div_{col1}'] = df[col2] / (df[col1].replace(0, np.nan))
+        df[f'{col1}_sub_{col2}'] = df[col1] - df[col2]
+        df[f'{col2}_sub_{col1}'] = df[col2] - df[col1]
+        df[f'{col1}_add_{col2}'] = df[col1] + df[col2]
 
     return df
 
