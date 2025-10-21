@@ -51,6 +51,19 @@ def load_and_prepare(file_name: str, sep: str =',') -> pd.DataFrame:
         df[f'{col2}_sub_{col1}'] = df[col2] - df[col1]
         df[f'{col1}_add_{col2}'] = df[col1] + df[col2]
 
+    # method of data synthesis used in the original dataset
+    df['base_risk'] = (0.3 * df['curvature'] +
+                       0.2 * (df['lighting'] == 'night').astype(int) +
+                       0.1 * (df['weather'] != 'clear').astype(int) +
+                       0.2 * (df['speed_limit'] >= 60).astype(int) +
+                       0.1 * (df['num_reported_accidents'] > 2).astype(int))
+
+    # combinations of binary features
+    BINARY_COLS = ['road_signs_present', 'public_road', 'holiday', 'school_season']
+    df['BINARY'] = 0
+    for i, col in enumerate(BINARY_COLS):
+        df['BINARY'] += df[col].astype(int) * (2**i)
+
     return df
 
 
