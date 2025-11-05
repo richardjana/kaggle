@@ -136,7 +136,7 @@ for train_idx, valid_idx in skf.split(X_train, y_train):
     model = LGBMClassifier(**best_params)
     model.fit(X_train_fold, y_train_fold,
               eval_set=[(X_valid_fold, y_valid_fold)],
-              eval_metric='rmse')
+              eval_metric='auc')
 
     oof_preds[valid_idx] = model.predict(X_valid_fold)
 
