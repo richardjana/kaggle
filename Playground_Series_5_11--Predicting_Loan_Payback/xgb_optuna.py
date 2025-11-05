@@ -5,7 +5,7 @@ import optuna
 import pandas as pd
 from xgboost import XGBClassifier
 
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 
 sys.path.append('/'.join(__file__.split('/')[:-2]))
@@ -82,7 +82,7 @@ ADDITIONAL_PARAMS = {'objective': 'binary:logistic',
                      }
 
 
-kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 # Define objective function for Optuna
 def objective(trial):
     params = {'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
@@ -99,7 +99,7 @@ def objective(trial):
 
     # Cross-validation
     aucs = []
-    for train_idx, valid_idx in kf.split(X_train, y_train):
+    for train_idx, valid_idx in skf.split(X_train, y_train):
         X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
         y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
 
@@ -131,7 +131,7 @@ best_params.update(ADDITIONAL_PARAMS)
 
 oof_preds = np.zeros(len(X_train))
 test_fold_preds = []
-for train_idx, valid_idx in kf.split(X_train, y_train):
+for train_idx, valid_idx in skf.split(X_train, y_train):
     X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
     y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
 
