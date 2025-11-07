@@ -140,9 +140,9 @@ for train_idx, valid_idx in skf.split(X_train, y_train):
               eval_set=[(X_valid_fold, y_valid_fold)],
               verbose=False)
 
-    oof_preds[valid_idx] = model.predict(X_valid_fold)
+    oof_preds[valid_idx] = model.predict_proba(X_valid_fold)[:, 1]
 
-    test_fold_preds.append(model.predict(X_test))
+    test_fold_preds.append(model.predict_proba(X_test)[:, 1])
 
 
 # write files for ensembling
