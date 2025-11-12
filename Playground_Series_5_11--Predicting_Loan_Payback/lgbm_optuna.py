@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 
+import loan_feature_engineering
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_api_functions import submit_prediction
 
@@ -64,10 +65,18 @@ X_train = load_and_prepare('train.csv')
 X_test = load_and_prepare('test.csv')
 orig = load_and_prepare('original.csv')
 
+CAT_COLS = [c for c in X_train.select_dtypes(include=['category']).columns if c != TARGET_COL]
+NUM_COLS = [c for c in X_train.select_dtypes(include=['number']).columns if c != TARGET_COL]
+
 #X_train = target_encode_with_original_data(X_train, orig)
 #X_test = target_encode_with_original_data(X_test, orig)
 
 #X_train = pd.concat([X_train, orig], ignore_index=True)
+
+X_train = loan_feature_engineering.add_subgrade_feature(X_train)
+X_test = loan_feature_engineering.add_subgrade_feature(X_test)
+X_train = loan_feature_engineering.add_biagram_feature(X_train, CAT_COLS)
+X_test = loan_feature_engineering.add_biagram_feature(X_test, CAT_COLS)
 
 
 ADDITIONAL_PARAMS = {'objective': 'binary',
