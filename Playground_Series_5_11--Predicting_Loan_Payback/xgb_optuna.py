@@ -69,8 +69,6 @@ orig = load_and_prepare('original.csv')
 
 #X_train = pd.concat([X_train, orig], ignore_index=True)
 
-y_train = X_train.pop(TARGET_COL)
-
 
 ADDITIONAL_PARAMS = {'objective': 'binary:logistic',
                      'eval_metric': 'auc',
@@ -99,9 +97,11 @@ def objective(trial):
 
     # Cross-validation
     aucs = []
-    for train_idx, valid_idx in skf.split(X_train, y_train):
+    for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
         X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
-        y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
+
+        y_train_fold = X_train_fold.pop(TARGET_COL)
+        y_valid_fold = X_valid_fold.pop(TARGET_COL)
 
         # Train model
         model = XGBClassifier(**params)
@@ -131,9 +131,11 @@ best_params.update(ADDITIONAL_PARAMS)
 
 oof_preds = np.zeros(len(X_train))
 test_fold_preds = []
-for train_idx, valid_idx in skf.split(X_train, y_train):
+for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
     X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
-    y_train_fold, y_valid_fold = y_train.iloc[train_idx], y_train.iloc[valid_idx]
+
+    y_train_fold = X_train_fold.pop(TARGET_COL)
+    y_valid_fold = X_valid_fold.pop(TARGET_COL)
 
     model = XGBClassifier(**best_params)
     model.fit(X_train_fold, y_train_fold,
