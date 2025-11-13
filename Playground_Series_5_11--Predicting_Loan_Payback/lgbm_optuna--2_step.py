@@ -2,13 +2,11 @@ import sys
 
 from lightgbm import LGBMClassifier
 import numpy as np
-import optuna
 import pandas as pd
 
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 
-import loan_feature_engineering
 sys.path.append('/'.join(__file__.split('/')[:-2]))
 from kaggle_api_functions import submit_prediction
 
@@ -80,7 +78,13 @@ ADDITIONAL_PARAMS = {'objective': 'binary',
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 
-def train_model(X_train):
+def train_model(X_train, X_predict=None, X_test=None):
+    if X_predict is not None:
+        fold_preds = []
+        X_predict = X_predict.drop(columns=TARGET_COL, errors='ignore')
+    if X_test is not None:
+        fold_tests = []
+
     # Cross-validation
     aucs = []
     for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
@@ -96,58 +100,48 @@ def train_model(X_train):
                   eval_metric='auc'
                   )
 
-        # Predict and evaluate
-        y_pred = model.predict_proba(X_valid_fold)[:, 1]
-        aucs.append(roc_auc_score(y_valid_fold, y_pred))
+        # Evaluate and predict
+        aucs.append(roc_auc_score(y_valid_fold, model.predict_proba(X_valid_fold)[:, 1]))
+        if X_predict is not None:
+            fold_preds.append(model.predict_proba(X_predict)[:, 1])
+        if X_test is not None:
+            fold_tests.append(model.predict_proba(X_test)[:, 1])
 
-    return model, aucs
+    if X_predict is not None:
+        prediction = np.mean(np.array(fold_preds), axis=0).astype(float)
+    else:
+        prediction = None
+    if X_test is not None:
+        testion = np.mean(np.array(fold_tests), axis=0).astype(float)
+    else:
+        testion = None
+
+    return aucs, prediction, testion
+
+
+def make_submission(values, file_name, message, score):
+    submit_df = pd.read_csv('sample_submission.csv')
+    submit_df[TARGET_COL] = values
+    submit_df.to_csv(file_name, columns=['id', TARGET_COL], index=False)
+
+    # submit to kaggle
+    public_score = submit_prediction(COMPETITION_NAME, file_name,
+                                    f"{message} ({score})")
+    print(f'Public score: {public_score}')
 
 
 # train plain model for comparison
-model_plain, aucs_plain = train_model(X_train)
-print(f"AUCs of the plain model = {aucs_plain}")
+aucs_plain, test_preds_plain, _ = train_model(X_train, X_predict=X_test, X_test=None)
+print(f"AUCs of the plain model = {aucs_plain} ({np.mean(aucs_plain)})")
+make_submission(test_preds_plain, 'pred_plain.csv', 'TEST plain', np.mean(aucs_plain))
 
-# train model on original data
-model_orig, aucs_orig = train_model(orig)
-print(f"AUCs of the original model = {aucs_orig}")
-
-# predict probabilities on training set and add as feature
-X_train['orig_pred'] = model_orig.predict_proba(X_train)[:, 1]
+# train model on original data, predict probabilities on training set and add as feature
+aucs_orig, train_preds_orig, test_preds_orig = train_model(orig, X_predict=X_train, X_test=X_test)
+print(f"AUCs of the original model = {aucs_orig} ({np.mean(aucs_orig)})")
+X_train['orig_pred'] = train_preds_orig
+X_test['orig_pred'] = test_preds_orig
 
 # train final model
-model_augmented, aucs_augmented = train_model(X_train)
-print(f"AUCs of the augmented model = {aucs_augmented}")
-
-
-
-
-oof_preds = np.zeros(len(X_train))
-test_fold_preds = []
-for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
-    X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
-
-    y_train_fold = X_train_fold.pop(TARGET_COL)
-    y_valid_fold = X_valid_fold.pop(TARGET_COL)
-
-    model = LGBMClassifier(**best_params)
-    model.fit(X_train_fold, y_train_fold,
-              eval_set=[(X_valid_fold, y_valid_fold)],
-              eval_metric='auc')
-
-    oof_preds[valid_idx] = model.predict_proba(X_valid_fold)[:, 1]
-
-    test_fold_preds.append(model.predict_proba(X_test)[:, 1])
-
-
-# write files for ensembling
-OOF_DF = pd.DataFrame({'y_true': y_train, 'oof': oof_preds})
-OOF_DF.to_csv('oof.csv', index=False)
-
-submit_df = pd.read_csv('sample_submission.csv')
-submit_df[TARGET_COL] = np.mean(np.array(test_fold_preds), axis=0).astype(float)
-submit_df.to_csv('predictions_optuna.csv', columns=['id', TARGET_COL], index=False)
-
-# submit to kaggle
-public_score = submit_prediction(COMPETITION_NAME, 'predictions_optuna.csv',
-                                 f"LGBM optuna ({study.best_value})")
-print(f'Public score: {public_score}')
+aucs_augmented, test_preds_augmented, _ = train_model(X_train, X_predict=X_test)
+print(f"AUCs of the augmented model = {aucs_augmented} ({np.mean(aucs_augmented)})")
+make_submission(test_preds_augmented, 'pred_augmented.csv', 'TEST augmented', np.mean(aucs_augmented))
