@@ -82,7 +82,7 @@ def train_logreg_optuna(df: pd.DataFrame, test_df: pd.DataFrame
 
         scores = []
 
-        for train_idx, val_idx in skf.split(X, y):
+        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
             X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
@@ -92,11 +92,16 @@ def train_logreg_optuna(df: pd.DataFrame, test_df: pd.DataFrame
             fold_auc = roc_auc_score(y_val, preds)
             scores.append(fold_auc)
 
+            trial.report(fold_auc, step=fold)
+            if trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
+
         return np.mean(scores)
 
     study = optuna.create_study(direction='maximize',
                                 study_name='logreg_optimization',
-                                storage='sqlite:///optuna_study_logreg.db')
+                                storage='sqlite:///optuna_study.db',
+                                pruner=optuna.pruners.MedianPruner(n_warmup_steps=1))
     study.optimize(objective, n_trials=1000, timeout=60*60*6)
 
 

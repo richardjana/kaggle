@@ -72,7 +72,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     # Cross-validation
     aucs = []
-    for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
+    for fold, (train_idx, valid_idx) in enumerate(skf.split(X_train, X_train[TARGET_COL])):
         X_train_fold, X_valid_fold = X_train.iloc[train_idx], X_train.iloc[valid_idx]
 
         y_train_fold = X_train_fold.pop(TARGET_COL)
@@ -82,20 +82,25 @@ def objective(trial: optuna.trial.Trial) -> float:
         model = LGBMClassifier(**params)
         model.fit(X_train_fold, y_train_fold,
                   eval_set=[(X_valid_fold, y_valid_fold)],
-                  eval_metric='auc'
-                  )
+                  eval_metric='auc')
 
         # Predict and evaluate
         y_pred = model.predict_proba(X_valid_fold)[:, 1]
-        aucs.append(roc_auc_score(y_valid_fold, y_pred))
+        fold_auc = roc_auc_score(y_valid_fold, y_pred)
+        aucs.append(fold_auc)
+
+        trial.report(fold_auc, step=fold)
+        if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
 
     return np.mean(aucs)
 
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize',
-                            study_name='loan_risk',
-                            storage='sqlite:///optuna_study.db')
+                            study_name='diabetes',
+                            storage='sqlite:///optuna_study.db',
+                            pruner=optuna.pruners.MedianPruner(n_warmup_steps=1))
 study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 

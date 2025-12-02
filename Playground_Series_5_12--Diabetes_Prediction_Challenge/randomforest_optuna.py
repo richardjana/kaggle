@@ -73,7 +73,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     params.update(ADDITIONAL_PARAMS)
 
     aucs = []
-    for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
+    for fold, (train_idx, valid_idx) in enumerate(skf.split(X_train, X_train[TARGET_COL])):
         X_train_fold = X_train.iloc[train_idx].copy()
         X_valid_fold = X_train.iloc[valid_idx].copy()
 
@@ -84,15 +84,21 @@ def objective(trial: optuna.trial.Trial) -> float:
         model.fit(X_train_fold, y_train_fold)
 
         y_pred = model.predict_proba(X_valid_fold)[:, 1]
-        aucs.append(roc_auc_score(y_valid_fold, y_pred))
+        fold_auc = roc_auc_score(y_valid_fold, y_pred)
+        aucs.append(fold_auc)
+
+        trial.report(fold_auc, step=fold)
+        if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
 
     return np.mean(aucs)
 
 
 # Create and optimize Optuna study
 study = optuna.create_study(direction='maximize',
-                            study_name='rf_study',
-                            storage='sqlite:///optuna_study_rf.db')
+                            study_name='diabetes',
+                            storage='sqlite:///optuna_study.db',
+                            pruner=optuna.pruners.MedianPruner(n_warmup_steps=1))
 study.optimize(objective, n_trials=1000, timeout=60*60*6)
 
 
