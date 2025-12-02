@@ -63,7 +63,7 @@ ADDITIONAL_PARAMS = {'n_jobs': -1,
 skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
 
 # Optuna objective
-def objective(trial):
+def objective(trial: optuna.trial.Trial) -> float:
     params = {'n_estimators': trial.suggest_int('n_estimators', 200, 1500),
               'max_depth': trial.suggest_int('max_depth', 3, 40),
               'min_samples_split': trial.suggest_int('min_samples_split', 2, 30),

@@ -58,7 +58,7 @@ ADDITIONAL_PARAMS = {'objective': 'binary',
 
 skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
 # Define objective function for Optuna
-def objective(trial):
+def objective(trial: optuna.trial.Trial) -> float:
     params = {'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.02, log=True),
               'num_leaves': trial.suggest_int('num_leaves', 20, 150),
               'max_depth': trial.suggest_int('max_depth', 3, 25),
