@@ -102,7 +102,7 @@ def train_logreg_optuna(df: pd.DataFrame, test_df: pd.DataFrame
                                 study_name='logreg_optimization',
                                 storage='sqlite:///optuna_study.db',
                                 pruner=optuna.pruners.MedianPruner(n_warmup_steps=1))
-    study.optimize(objective, n_trials=1000, timeout=60*60*6)
+    study.optimize(objective, n_trials=10_000, timeout=60*60*6)
 
 
     # Train final model using best hyperparameters
