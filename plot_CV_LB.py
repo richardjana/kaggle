@@ -10,7 +10,7 @@ import seaborn as sns
 try:
     COMPETITION = sys.argv[1]
 except IndexError:
-    COMPETITION = 'playground-series-s5e9'
+    COMPETITION = 'playground-series-s5e10'
 
 
 result = subprocess.run(['kaggle', 'competitions', 'submissions', '-c', COMPETITION],
