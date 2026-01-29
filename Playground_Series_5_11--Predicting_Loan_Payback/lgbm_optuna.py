@@ -155,7 +155,7 @@ for train_idx, valid_idx in skf.split(X_train, X_train[TARGET_COL]):
 
 
 # write files for ensembling
-OOF_DF = pd.DataFrame({'y_true': y_train, 'oof': oof_preds})
+OOF_DF = pd.DataFrame({'y_true': X_train[TARGET_COL], 'oof': oof_preds})
 OOF_DF.to_csv('oof.csv', index=False)
 
 submit_df = pd.read_csv('sample_submission.csv')
