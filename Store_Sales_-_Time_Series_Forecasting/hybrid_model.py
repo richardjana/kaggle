@@ -9,10 +9,6 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.stattools import pacf
 from xgboost import XGBRegressor
 
-# design choice: a single (hybrid) model for all data, or separate models for each product
-# category, or separate models for each category/store combination
-
-# TODO: create statistical features on product families and store locations
 
 '''
 XGB_PARAMS = {'objective': 'binary:logistic',
@@ -57,57 +53,75 @@ class HybridTimeSeriesPipeline:
         }).add_prefix('target_')
 
     def make_base_features(self, df, y, lags=[1, 2, 3, 7, 14], rolling_windows=[7, 14]):
-        base = pd.DataFrame(index=df.index)
+        out = []
 
-        # Lag features
-        for lag in lags:
-            base[f"lag_{lag}"] = y.shift(lag)
+        for (store, family), group in df.groupby(level=[0, 1], observed=True):
+            y_group = y.loc[group.index]
+            base = pd.DataFrame(index=group.index)
 
-        # Rolling means
-        for window in rolling_windows:
-            base[f"roll_mean_{window}"] = y.shift(1).rolling(window).mean()
-            # min
-            # max
-            # std_dev
+            # Trend
+            base['t_group'] = np.arange(len(base), dtype=float)
 
-        # Time features
-        base['dayofweek'] = df.index.dayofweek
-        base['month'] = df.index.month
-        base['hour'] = df.index.hour if hasattr(df.index, 'hour') else 0
+            # Lag features
+            for lag in lags:
+                base[f"lag_{lag}"] = y_group.shift(lag)
 
-        # flags weekend / holiday
-        base['is_weekend'] = df.index.dayofweek >= 5  # Saturday=5, Sunday=6
-        # holidays_events.csv
+            # Rolling means
+            for window in rolling_windows:
+                base[f"roll_mean_{window}"] = y_group.shift(1).rolling(window).mean()
+                # min
+                # max
+                # std_dev
 
-        # Fourier terms (seasonality)
-        base['sin_day'] = np.sin(2 * np.pi * df.index.dayofyear / 365)
-        base['cos_day'] = np.cos(2 * np.pi * df.index.dayofyear / 365)
-        # 7
-        # 30
+            # Time features
+            dates = group.index.get_level_values('date')
+            base['dayofweek'] = dates.dayofweek
+            base['month'] = dates.month
+            base['hour'] = dates.hour if hasattr(dates, 'hour') else 0
 
-        return base.add_prefix('base_')
+            # flags weekend / holiday
+            base['is_weekend'] = (dates.dayofweek >= 5).astype(bool)  # Saturday=5, Sunday=6
+            # holidays_events.csv
+
+            # Fourier terms (seasonality)
+            base['sin_day'] = np.sin(2 * np.pi * dates.dayofyear / 365)
+            base['cos_day'] = np.cos(2 * np.pi * dates.dayofyear / 365)
+            # 7
+            # 30
+
+            out.append(base)
+
+        return pd.concat(out).sort_index().add_prefix('base_')
 
     def make_boost_features(self, df, y, lags=range(1, 31), rolling_windows=[7, 14, 30]):
-        boost = pd.DataFrame(index=df.index)
+        out = []
 
-        # Extended lag features
-        for lag in lags:
-            boost[f"lag_{lag}"] = y.shift(lag)
+        for (store, family), group in df.groupby(level=[0, 1], observed=True):
+            y_group = y.loc[group.index]
+            boost = pd.DataFrame(index=group.index)
 
-        # Rolling stats
-        for window in rolling_windows:
-            boost[f"roll_std_{window}"] = y.shift(1).rolling(window).std()
-            boost[f"roll_min_{window}"] = y.shift(1).rolling(window).min()
-            boost[f"roll_max_{window}"] = y.shift(1).rolling(window).max()
-            boost[f"roll_q25_{window}"] = y.shift(1).rolling(window).quantile(0.25)
-            boost[f"roll_q75_{window}"] = y.shift(1).rolling(window).quantile(0.75)
+            # Extended lag features
+            for lag in lags:
+                boost[f"lag_{lag}"] = y_group.shift(lag)
 
-        # Interaction terms
-        boost['lag_1_x_dayofweek'] = y.shift(1) * df.index.dayofweek
+            # Rolling stats
+            for window in rolling_windows:
+                boost[f"roll_std_{window}"] = y_group.shift(1).rolling(window).std()
+                boost[f"roll_min_{window}"] = y_group.shift(1).rolling(window).min()
+                boost[f"roll_max_{window}"] = y_group.shift(1).rolling(window).max()
+                boost[f"roll_q25_{window}"] = y_group.shift(1).rolling(window).quantile(0.25)
+                boost[f"roll_q75_{window}"] = y_group.shift(1).rolling(window).quantile(0.75)
 
-        # External regressors
-        for col in df.columns:
-            boost[col] = df[col]
+            # Interaction terms
+            boost['lag_1_x_dayofweek'] = (y_group.shift(1)
+                                          * group.index.get_level_values('date').dayofweek)
+
+            # join external regressors
+            boost = boost.join(group, how='left')
+
+            out.append(boost)
+
+        boost = pd.concat(out).sort_index()
 
         return boost.add_prefix('boost_')
 
@@ -116,14 +130,36 @@ class HybridTimeSeriesPipeline:
         X_base = self.make_base_features(df, y)
         X_boost = self.make_boost_features(df, y)
 
-        # Align and clean
+        # Align and clean (Do I really need this? If no, move the next few sections into the
+        # make_features functions.)
         full = pd.concat([X_base, X_boost, Y], axis=1).dropna()
         X_base_clean = full[X_base.columns]
         X_boost_clean = full[X_boost.columns]
         Y_clean = full[Y.columns]
 
+        # Flatten index for model input
+        X_base_clean = X_base_clean.reset_index()
+        X_boost_clean = X_boost_clean.reset_index()
+
+        # store_nbr and family need encoding for base model!
+        X_base_clean = X_base_clean.drop(columns=['date'])
+        cat_cols = ['store_nbr', 'family']
+        num_cols = X_base_clean.columns.difference(cat_cols)
+        X_base_num = X_base_clean[num_cols]
+        X_base_cat = pd.get_dummies(X_base_clean[cat_cols], drop_first=False)
+        X_base_clean = pd.concat([X_base_num, X_base_cat], axis=1)
+
+        X_boost_clean['family'] = X_boost_clean['family'].astype('category')
+        X_boost_clean['store_nbr'] = X_boost_clean['store_nbr'].astype('category')
+        X_boost_clean = X_boost_clean.drop(columns=['date'])
+
         # Scale base features
-        X_base_scaled = self.scaler.fit_transform(X_base_clean)
+        X_base_scaled = X_base_clean.copy()
+        scale_cols = (X_base_clean
+                      .select_dtypes(include=['number'])
+                      .columns
+                      .difference(X_base_clean.select_dtypes(include=['bool']).columns))
+        X_base_scaled[scale_cols] = self.scaler.fit_transform(X_base_clean[scale_cols])
 
         # Fit base model
         self.base_model.fit(X_base_scaled, Y_clean)
@@ -147,15 +183,37 @@ class HybridTimeSeriesPipeline:
         X_base_clean = full[X_base.columns]
         X_boost_clean = full[X_boost.columns]
 
+        # Flatten index for model input
+        X_base_clean = X_base_clean.reset_index()
+        X_boost_clean = X_boost_clean.reset_index()
+
+        X_base_clean = X_base_clean.drop(columns=['date'])
+        cat_cols = ['store_nbr', 'family']
+        num_cols = X_base_clean.columns.difference(cat_cols)
+        X_base_num = X_base_clean[num_cols]
+        X_base_cat = pd.get_dummies(X_base_clean[cat_cols], drop_first=False)
+        X_base_clean = pd.concat([X_base_num, X_base_cat], axis=1)
+
+        X_boost_clean['family'] = X_boost_clean['family'].astype('category')
+        X_boost_clean['store_nbr'] = X_boost_clean['store_nbr'].astype('category')
+        X_boost_clean = X_boost_clean.drop(columns=['date'])
+
         # Scale base features
-        X_base_scaled = self.scaler.transform(X_base_clean)
+        X_base_scaled = X_base_clean.copy()
+        scale_cols = (X_base_clean
+                      .select_dtypes(include=['number'])
+                      .columns
+                      .difference(X_base_clean.select_dtypes(include=['bool']).columns))
+        X_base_scaled[scale_cols] = self.scaler.transform(X_base_clean[scale_cols])
 
         # Predict
         Y_base_pred = self.base_model.predict(X_base_scaled)
         Y_boost_pred = self.booster_model.predict(X_boost_clean)
 
-        return Y_base_pred + Y_boost_pred
-
+        return pd.DataFrame(
+            Y_base_pred + Y_boost_pred,
+            index=full.index,
+            columns=self.create_targets(pd.Series(index=full.index, dtype=float)).columns)
 
 def spaced_multi_horizon_splits(n_samples, horizon=16, n_folds=5, min_train_size=200):
     """
@@ -184,45 +242,90 @@ def spaced_multi_horizon_splits(n_samples, horizon=16, n_folds=5, min_train_size
 
     return splits
 
+def panel_date_splits(df, horizon=16, n_folds=5, min_train_days=200, history_days=14):
+    """
+    Panel-aware date-based CV.
+
+    Each split:
+      - train: all rows with date <= cutoff
+      - val: rows covering [cutoff - history_days + 1, cutoff + horizon]
+             (history included for feature generation)
+
+    Returns list of (train_idx, val_idx) using positional indices.
+    """
+    date_level='date'
+
+    dates = df.index.get_level_values(date_level).unique().sort_values()
+
+    if len(dates) < min_train_days + horizon:
+        raise ValueError('Not enough dates for requested split.')
+
+    cutoff_positions = np.linspace(min_train_days,
+                                   len(dates) - horizon,
+                                   n_folds,
+                                   dtype=int)
+
+    date_index = df.index.get_level_values(date_level)
+    splits = []
+
+    for pos in cutoff_positions:
+        train_end = dates[pos]
+
+        # Validation ranges
+        hist_start = dates[max(0, pos - history_days + 1)]
+        val_end    = dates[pos + horizon - 1]
+
+        # Masks
+        train_mask = date_index <= train_end
+
+        val_mask = (date_index > train_end) & (date_index <= val_end)
+        hist_mask = (date_index >= hist_start) & (date_index <= val_end)
+
+        train_idx = np.flatnonzero(train_mask)
+        val_idx   = np.flatnonzero(hist_mask)
+        eval_idx  = np.flatnonzero(val_mask)
+
+        splits.append((train_idx, val_idx, eval_idx))
+
+    return splits
+
 
 TARGET_COL = 'sales'
+HORIZON = 16
+HISTORY = 31  # max(max(lags), max(rolling_windows))
 
 X = pd.read_csv('train.csv', parse_dates=['date'])
-X = X.set_index('date').sort_index()
 X['family'] = X['family'].astype('category')
+X = X.set_index(['store_nbr', 'family', 'date']).sort_index()
 y = X.pop(TARGET_COL)
 
-
 results = []
-for fold, (train_idx, val_idx) in enumerate(spaced_multi_horizon_splits(len(X))):
-    model = HybridTimeSeriesPipeline(horizon=16)
-    model.fit(X.loc[X.index[train_idx]],
-              y.loc[y.index[train_idx]])
 
-    # predict on full history (possibly more data than necessary?)
-    X_hist = X.loc[X.index[:val_idx[-1] + 1]]
-    y_hist = y.loc[y.index[:val_idx[-1] + 1]]
-    preds_full = model.predict(X_hist, y_hist)
-    preds = preds_full[-len(val_idx):]
+splits = panel_date_splits(X,
+                           horizon=HORIZON,
+                           n_folds=5,
+                           min_train_days=200,
+                           history_days=HISTORY)
 
-    # compute metric
-    Y_true = model.create_targets(y_hist).iloc[val_idx]
-    results.append(mean_absolute_error(preds, Y_true.values))
-    print(f"Fold {fold+1}: MAE={results[-1]:.4f}")
+for fold, (train_idx, val_idx, eval_idx) in enumerate(splits):
+    model = HybridTimeSeriesPipeline(horizon=HORIZON)
 
-''' change feature engineering like so:
-def make_base_features(self, df, y, ...):
-    out = []
+    model.fit(X.iloc[train_idx], y.iloc[train_idx])
 
-    for (store, family), group in df.groupby(["store_nbr", "family"]):
-        y_group = y.loc[group.index]
+    preds = model.predict(X.iloc[val_idx], y.iloc[val_idx])
 
-        base = pd.DataFrame(index=group.index)
-        base["lag_1"] = y_group.shift(1)
-        base["lag_2"] = y_group.shift(2)
-        base["roll_mean_7"] = y_group.shift(1).rolling(7).mean()
-        ...
-        out.append(base)
+    Y_true = model.create_targets(y.iloc[eval_idx])
+    Y_pred = preds.reindex(Y_true.index)
 
-    return pd.concat(out).sort_index()
-'''
+    # Keep only rows where all horizons exist
+    valid_mask = ~Y_true.isna().any(axis=1)
+    Y_true_valid = Y_true.loc[valid_mask]
+    Y_pred_valid = Y_pred.loc[valid_mask]
+
+    assert Y_pred_valid.shape == Y_true_valid.shape
+    assert np.isfinite(Y_pred_valid.values).all()
+    assert np.isfinite(Y_true_valid.values).all()
+
+    mae = mean_absolute_error(Y_pred_valid.values, Y_true_valid.values)
+
+    print(f"Fold {fold+1}: MAE={mae:.4f}")
